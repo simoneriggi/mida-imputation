@@ -62,11 +62,64 @@ class Util : public TObject {
 	public:
 
 		/**
+		* \brief Correct covariance matrix
+		*/
+		static int CorrectCovarianceMatrix(TMatrixD* covMatrix);
+
+		/**
+		* \brief Load R libraries
+		*/
+		static int LoadRLibraries(std::vector<std::string> libraryNames);
+
+		/**
+		* \brief Clear R data
+		*/
+		static int ClearRData();
+
+		/**
+		* \brief Get diagonal matrix
+		*/
+		static TMatrixD* GetDiagonalMatrix(TMatrixD* dataMatrix);
+
+		/**
+		* \brief Convert TMatrixD to Rcpp::NumericMatrix
+		*/
+		static Rcpp::NumericMatrix* ConvertROOTMatrixToRMatrix(TMatrixD* dataMatrix);
+
+		/**
+		* \brief Convert loaded R table to ROOT matrix
+		*/
+		static TMatrixD* ConvertRTableToROOTMatrix(std::string RTable);
+
+		/**
+		* \brief Convert loaded R vector to ROOT matrix
+		*/
+		static TMatrixD* ConvertRVectToROOTMatrix(std::string RVect);
+
+		/**
+		* \brief Import TMatrixD in R
+		*/
+		static int ImportMatrixInR(TMatrixD* dataMatrix,std::string dataname="data");
+
+		/**
+		* \brief Compute covariance matrix of a stored R table and return it as a ROOT TMatrix
+		*/
+		static TMatrixD* ComputeCovarianceMatrixFromRTable(std::string RTable,std::string covMatrixRName="covMatrix");
+
+		/**
+		* \brief Compute R table column means and return it as a ROOT TMatrix
+		*/
+		static TMatrixD* ComputeRTableColMeans(std::string RTable,std::string colMeansRName="colMeansVect");
+
+
+		/**
 		* \brief Create artifically random missing data in matrix and return data with missing data
 		*/
 		static TMatrixD* MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction);
 		
-
+		/**
+		* \brief Dump matrix to ascii file
+		*/
 		static int DumpMatrixToAsciiFile(TMatrixD* dataMatrix,std::string filename);
 
 		/**
@@ -104,6 +157,23 @@ class Util : public TObject {
   			sorted.resize(unsorted.size());
   			reorder(unsorted,index_map,sorted);
 			}
+
+		template<typename T>
+		static int ParseStringFields(std::vector<T>& parsed_fields,std::string inputStr)
+		{
+			parsed_fields.clear();
+			std::istringstream iss(inputStr);
+			T value= T(0);
+			for(std::string token; iss >> token;) {
+				std::stringstream ss;
+     		ss << token;
+     		ss >> value;
+				parsed_fields.push_back(value);
+			}
+			return 0;
+		}//close ParseStringFields()
+
+	
 
 	private:
 	

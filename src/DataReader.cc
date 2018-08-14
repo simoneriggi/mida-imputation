@@ -47,6 +47,9 @@ DataReader::~DataReader()
 
 int DataReader::ReadAsciiInR(std::string filename,std::string delimiter,std::string importedDataName)
 {
+	//## Check delimiter
+	//...
+	
 	//## Create R command for importing data
 	std::stringstream RCmdStr;
 	RCmdStr<< importedDataName<<" <- as.matrix(read.table(";
@@ -81,6 +84,10 @@ int DataReader::ReadAscii(std::vector< std::vector<double> >& data,long int& ndi
 		return -1;
   }
 
+	//Set delimiter
+	char del= ' ';
+	if(delimiter!="" && delimiter.length()>0) del= delimiter[0];
+
 	//Read ascii data line by line
 	cout<<"INFO: Reading input data..."<<endl;
 	std::string line;
@@ -98,10 +105,13 @@ int DataReader::ReadAscii(std::vector< std::vector<double> >& data,long int& ndi
 			std::vector<double> fields;
 			std::string token;
 			double value= 0;
-			while(getline(ss,token,delimiter[0]))
+			while(getline(ss,token,del))
 			{
      		if(token=="nan" || token=="inf" || token=="-inf" || token=="na"){		
 					value= TMath::SignalingNaN();
+				}
+				else if(token==""){
+					continue;
 				}
 				else {
 					value= atof(token.c_str());

@@ -46,7 +46,7 @@
 
 namespace MDImputation_ns {
 
-class MeanImputation{
+class MeanImputation : public TObject {
 
   public:
 		
@@ -70,13 +70,20 @@ class MeanImputation{
 		*/
 		static TMatrixD* RunImputation(TMatrixD* dataMatrix);
 
+		/**
+		* \brief Run imputation from loaded R table 
+		*/
+		static TMatrixD* RunImputationFromRTable(std::string RTableName,std::string RTableName_withoutMiss="dataMatrix_imputed");
+		
+		/**
+		* \brief Run imputation from loaded R table and return results in a R table
+		*/
+		static int RunImputationInR(std::string RTableName,std::string RTableName_withoutMiss);
 		
 	private:
 	
-	private:
 	
-
-	ClassDef(MeanImputation,1)
+		ClassDef(MeanImputation,1)
 
 
 };//close class

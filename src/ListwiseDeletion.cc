@@ -10,6 +10,7 @@
 
 #include <ListwiseDeletion.h>
 #include <DataReader.h>
+#include <Util.h>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -68,6 +69,49 @@ ListwiseDeletion::~ListwiseDeletion(){
 
 }
 
+int ListwiseDeletion::RunImputationInR(std::string RTableName,std::string RTableName_withoutMiss)
+{
+	//## Fill missing values with mean imputation method 
+	cout<<"INFO: Fill missing data with Listwise-Deletion method..."<<endl;
+	
+	std::stringstream ss;
+	ss<<RTableName_withoutMiss<<" <- na.exclude("<<RTableName<<");";
+	std::string RCmd= ss.str();
+
+	cout<<"INFO: Running R cmd: "<<RCmd<<endl;
+	try{
+		Util::fR.parseEvalQ(RCmd.c_str());
+	}
+	catch(...){
+		cerr<<"ERROR: Failures occurred when running listwise deletion imputation inside R!"<<endl;
+		return -1;
+	}
+
+	return 0;
+
+}//close RunImputationInR
+
+TMatrixD* ListwiseDeletion::RunImputationFromRTable(std::string RTableName,std::string RTableName_withoutMiss)
+{
+	//## Fill missing values with mean imputation method 
+	cout<<"INFO: Fill missing data with Listwise-Deletion method..."<<endl;
+	
+	if(RunImputationInR(RTableName,RTableName_withoutMiss)<0){
+		cerr<<"ERROR: Failed to impute data of R table "<<RTableName<<" and return imputed R table "<<RTableName_withoutMiss<<"!"<<endl;
+		return nullptr;
+	}
+
+	//## Retrieve results
+	TMatrixD* dataMatrixWithImpData= Util::ConvertRTableToROOTMatrix(RTableName_withoutMiss);
+	if(!dataMatrixWithImpData){
+		cerr<<"ERROR: Failed to retrieve data table and convert to ROOT matrix!"<<endl;
+		return nullptr;
+	}
+
+	return dataMatrixWithImpData;
+
+}//close RunImputationFromRTable()
+
 
 TMatrixD* ListwiseDeletion::RunImputation(std::string filename,std::string delimiter)
 {
@@ -77,6 +121,17 @@ TMatrixD* ListwiseDeletion::RunImputation(std::string filename,std::string delim
 		return nullptr;
 	}
 
+	//## Read data and import to R as a matrix
+	cout<<"INFO: Reading data table in R..."<<endl;
+	if(DataReader::ReadAsciiInR(filename,delimiter,"dataMatrix")<0){
+		cerr<<"ERROR: Failed to read ascii file and import it in R!"<<endl;
+		return nullptr;
+	}
+
+	//## Fill missing values with mean imputation method 
+	TMatrixD* dataMatrixWithoutMissData= RunImputationFromRTable("dataMatrix");
+
+	/*
 	//## Read data matrix from file
 	TMatrixD* dataMatrix= DataReader::ReadAscii(filename,delimiter);
 	if(!dataMatrix){
@@ -96,6 +151,7 @@ TMatrixD* ListwiseDeletion::RunImputation(std::string filename,std::string delim
 		cerr<<"ERROR: Failed to compute data without missing values!"<<endl;
 		return nullptr;
 	}
+	*/
 
 	return dataMatrixWithoutMissData;
 
@@ -109,6 +165,16 @@ TMatrixD* ListwiseDeletion::RunImputation(TMatrixD* dataMatrix)
 		return nullptr;
 	}
 
+	//## Import data matrix in R
+	if(Util::ImportMatrixInR(dataMatrix,"dataMatrix")<0){
+		cerr<<"ERROR: Failed to import data matrix in R!"<<endl;
+		return nullptr;
+	}
+	
+	//## Fill missing values with mean imputation method 
+	TMatrixD* dataMatrixWithoutMissData= RunImputationFromRTable("dataMatrix");
+	
+	/*
 	//## Loop over matrix and select lines without missing data
 	long int N= dataMatrix->GetNrows();
 	long int NDim= dataMatrix->GetNcols();
@@ -139,7 +205,8 @@ TMatrixD* ListwiseDeletion::RunImputation(TMatrixD* dataMatrix)
 			(*dataMatrixWithoutMissData)(i,j)= w;
 		}//end loop dims
 	}//end loop 
-	
+	*/
+
 	return dataMatrixWithoutMissData;
 
 }//close RunImputation()

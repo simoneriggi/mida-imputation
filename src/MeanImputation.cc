@@ -73,6 +73,83 @@ MeanImputation::~MeanImputation()
 {
 
 }
+ 
+int MeanImputation::RunImputationInR(std::string RTableName,std::string RTableName_withoutMiss)
+{
+	//## Fill missing values with mean imputation method 
+	cout<<"INFO: Fill missing data with MeanImputation method..."<<endl;
+	
+	std::stringstream ss;
+	ss<<RTableName_withoutMiss<<" <- apply("<<RTableName<<",2,meanImputation);";
+	std::string RCmd= ss.str();
+	cout<<"INFO: Running R cmd: "<<RCmd<<endl;
+
+	try{
+		Util::fR.parseEvalQ("meanImputation= function(x){x<-as.numeric(as.character(x)); x[is.na(x)]= mean(x, na.rm=TRUE); x;}");
+		Util::fR.parseEvalQ(RCmd.c_str());
+	}
+	catch(...){
+		cerr<<"ERROR: Failures occurred when running mean imputation inside R!"<<endl;
+		return -1;
+	}
+
+	return 0;
+
+}//close RunImputationInR
+
+
+TMatrixD* MeanImputation::RunImputationFromRTable(std::string RTableName,std::string RTableName_withoutMiss)
+{
+	//## Fill missing values with mean imputation method 
+	cout<<"INFO: Fill missing data with MeanImputation method..."<<endl;
+	
+	if(RunImputationInR(RTableName,RTableName_withoutMiss)<0){
+		cerr<<"ERROR: Failed to impute data of R table "<<RTableName<<" and return imputed R table "<<RTableName_withoutMiss<<"!"<<endl;
+		return nullptr;
+	}
+
+	//cout<<"DEBUG: Print R table with miss data "<<endl;
+	//Util::fR.parseEvalQ(Form("print(%s);",RTableName.c_str()));
+
+	//cout<<"DEBUG: Print R table with miss data imputed"<<endl;
+	//Util::fR.parseEvalQ(Form("print(%s);",RTableName_withoutMiss.c_str()));
+
+	//## Retrieve results
+	TMatrixD* dataMatrixWithImpData= Util::ConvertRTableToROOTMatrix(RTableName_withoutMiss);
+	if(!dataMatrixWithImpData){
+		cerr<<"ERROR: Failed to retrieve data table and convert to ROOT matrix!"<<endl;
+		return nullptr;
+	}
+
+	/*
+	std::stringstream ss;
+	ss<<"dataMatrix <- apply("<<RTableName<<",2,meanImputation);";
+	std::string RCmd= ss.str();
+	cout<<"INFO: Running R cmd: "<<RCmd<<endl;
+
+	try{
+		Util::fR.parseEvalQ("meanImputation= function(x){x<-as.numeric(as.character(x)); x[is.na(x)]= mean(x, na.rm=TRUE); x;}");
+		Util::fR.parseEvalQ(RCmd.c_str());
+	}
+	catch(...){
+		cerr<<"ERROR: Failures occurred when running mean imputation inside R!"<<endl;
+		return nullptr;
+	}
+
+	//## Retrieve results
+	TMatrixD* dataMatrixWithImpData= Util::ConvertRTableToROOTMatrix("dataMatrix");
+	if(!dataMatrixWithImpData){
+		cerr<<"ERROR: Failed to retrieve data table and convert to ROOT matrix!"<<endl;
+		return nullptr;
+	}
+	*/
+
+
+
+	return dataMatrixWithImpData;
+
+}//close RunImputationFromRTable()
+
 
 TMatrixD* MeanImputation::RunImputation(std::string filename,std::string delimiter)
 {
@@ -82,6 +159,17 @@ TMatrixD* MeanImputation::RunImputation(std::string filename,std::string delimit
 		return nullptr;
 	}
 
+	//## Read data and import to R as a matrix
+	cout<<"INFO: Reading data table in R..."<<endl;
+	if(DataReader::ReadAsciiInR(filename,delimiter,"dataMatrix")<0){
+		cerr<<"ERROR: Failed to read ascii file and import it in R!"<<endl;
+		return nullptr;
+	}
+
+	//## Fill missing values with mean imputation method 
+	TMatrixD* dataMatrixWithImpData= RunImputationFromRTable("dataMatrix");
+
+	/*
 	//## Read data and import to R as a matrix
 	cout<<"INFO: Reading data table in R..."<<endl;
 	if(DataReader::ReadAsciiInR(filename,delimiter,"dataMI")<0){
@@ -123,7 +211,7 @@ TMatrixD* MeanImputation::RunImputation(std::string filename,std::string delimit
 		cerr<<"ERROR: Failed to retrieve data table and relative size with imputed values in R!"<<endl;
 		return nullptr;
 	}
-
+	*/
 	
 	return dataMatrixWithImpData;
 
@@ -137,11 +225,17 @@ TMatrixD* MeanImputation::RunImputation(TMatrixD* dataMatrix)
 		return nullptr;
 	}
 
-	//## WRITE ME!!!
-	//...
-	//...
+	//## Import data matrix in R
+	if(Util::ImportMatrixInR(dataMatrix,"dataMatrix")<0){
+		cerr<<"ERROR: Failed to import data matrix in R!"<<endl;
+		return nullptr;
+	}
+	
+	//## Fill missing values with mean imputation method 
+	TMatrixD* dataMatrixWithImpData= RunImputationFromRTable("dataMatrix");
 
-	return nullptr;
+
+	return dataMatrixWithImpData;
 
 }//close RunImputation()
 

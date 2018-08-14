@@ -72,6 +72,316 @@ Util::~Util(){
 
 }
 
+int Util::LoadRLibraries(std::vector<std::string> libraryNames)
+{
+	//Check libraries
+	if(libraryNames.empty()){
+		cerr<<"WARN: Empty library names!"<<endl;
+		return -1;
+	}
+
+	//Load libraries
+	for(size_t i=0;i<libraryNames.size();i++){
+		std::string RCmd= Form("library('%s')",libraryNames[i].c_str());
+		try{
+			Util::fR.parseEval(RCmd);	
+		}
+		catch(...){
+			cerr<<"ERROR: Failed to load library "<<libraryNames[i]<<"!"<<endl;
+			return -1;
+		}		
+	}//end loop libraries
+
+	return 0;
+
+}//close LoadRLibraries()
+
+int Util::ClearRData()
+{
+	//## Clear R environment
+	cout<<"INFO: Clearing R environment..."<<endl;
+	try{
+		fR.parseEvalQ("rm(list = ls(all = TRUE))");
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to clear R data!"<<endl;
+		return -1;
+	}
+
+	return 0;
+
+}//close ClearRData()
+
+
+int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
+{
+	//Check data matrix
+	if(!covMatrix){
+		cerr<<"ERROR: Null ptr to matrix given!"<<endl;	
+		return -1;
+	}
+	long int nCols= covMatrix->GetNcols();
+	long int nRows= covMatrix->GetNrows();
+	
+	//Check for square matrix
+	if(nCols!=nRows){
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a simmetric matrix!)"<<endl;
+		return -1;
+	}
+
+	//Import matrix in R
+	std::string covMatrixRName= "sigma";
+	if(ImportMatrixInR(covMatrix,covMatrixRName)<0){
+		cerr<<"ERROR: Failed to import covariance matrix in R!"<<endl;
+		return -1;
+	}
+
+	//## Force covariance to be symmetric and pos def
+	//## Approximate to the nearest covariance matrix
+	std::stringstream ss;
+	ss<<"res <- nearPD("<<covMatrixRName<<", corr=FALSE, do2eigen=FALSE, ensureSymmetry= TRUE);";
+	std::string RCmd= ss.str();
+	try{
+		fR.parseEvalQ(RCmd);
+
+		//Remove tmp sigma
+		Util::fR.parseEvalQ(Form("rm(%s)",covMatrixRName.c_str()));
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to approximate covariance to nearest symm & pos-def matrix!"<<endl;	
+		return -1;
+	}
+	
+	//## Get corrected matrix and re-assign to Sigma
+	try{
+		Rcpp::NumericMatrix covMatrix_corr= fR.parseEval("as.matrix(res$mat);");
+		for (int l=0; l<nCols; l++) {
+			for (int j=0; j<nCols; j++) {
+				double w= covMatrix_corr(l,j);
+				(*covMatrix)(l,j)= w;
+			}
+		}
+	}//close try
+	catch(...){
+		cerr<<"ERROR: Failed to retrieve corrected cov matrix and update given matrix!"<<endl;
+		return -1;
+	}
+
+	return 0;
+
+}//close CorrectCovarianceMatrix()
+
+TMatrixD* Util::GetDiagonalMatrix(TMatrixD* dataMatrix)
+{
+	//Check data matrix
+	if(!dataMatrix){
+		cerr<<"ERROR: Null ptr to matrix given!"<<endl;	
+		return nullptr;
+	}
+	long int nCols= dataMatrix->GetNcols();
+	long int nRows= dataMatrix->GetNrows();
+	
+	//Check for square matrix
+	if(nCols!=nRows){
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a simmetric matrix!)"<<endl;
+		return nullptr;
+	}
+
+	//Create matrix
+	TMatrixD* diagMatrix= new TMatrixD(nRows,nRows);
+	diagMatrix->Zero();
+
+	//Fill diagonal values
+	for(long int i=0;i<nRows;i++){
+		(*diagMatrix)(i,i)= (*dataMatrix)(i,i);
+	}
+
+	return diagMatrix;
+
+}//close GetDiagonalMatrix()
+
+
+TMatrixD* Util::ComputeRTableColMeans(std::string RTable,std::string colMeansRName)
+{
+	//Check table name
+	if(RTable==""){
+		cerr<<"ERROR: Empty R table name!"<<endl;	
+		return nullptr;
+	}
+
+	//Compute col means matrix	
+	std::stringstream ss;
+	ss<<colMeansRName<<" <- colMeans("<<RTable<<")";
+	std::string RCmd= ss.str(); 
+	try{
+		Util::fR.parseEval(RCmd.c_str());
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to compute data column means in R!"<<endl;
+		return nullptr;
+	}
+
+	//Convert data to TMatrixD
+	TMatrixD* colMeans= Util::ConvertRVectToROOTMatrix(colMeansRName);
+	if(!colMeans){
+		cerr<<"ERROR: Failed to convert R vector to ROOT!"<<endl;
+		return nullptr;
+	}
+
+	return colMeans;
+
+}//close ComputeRTableColMeans()
+
+
+TMatrixD* Util::ComputeCovarianceMatrixFromRTable(std::string RTable,std::string covMatrixRName)
+{
+	//Check table name
+	if(RTable==""){
+		cerr<<"ERROR: Empty R table name!"<<endl;	
+		return nullptr;
+	}
+
+	//Compute covariance matrix	
+	std::stringstream ss;
+	ss<<covMatrixRName<<" <- cov("<<RTable<<")";
+	std::string RCmd= ss.str(); 
+
+	try{
+		Util::fR.parseEval(RCmd.c_str());
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to compute data covariance matrix in R!"<<endl;
+		return nullptr;
+	}
+
+	//Convert data to TMatrixD
+	TMatrixD* covMatrix= Util::ConvertRTableToROOTMatrix(covMatrixRName);
+	if(!covMatrix){
+		cerr<<"ERROR: Failed to convert cov matrix from R to ROOT!"<<endl;
+		return nullptr;
+	}
+
+	return covMatrix;
+
+}//close ComputeCovarianceMatrixFromRTable()
+
+
+TMatrixD* Util::ConvertRVectToROOTMatrix(std::string RVect)
+{
+	//Check table name
+	if(RVect==""){
+		cerr<<"ERROR: Empty R vector name!"<<endl;	
+		return nullptr;
+	}
+
+	//Store R table to NumericVector and then fill TMatrixD (double copy...not efficient!!!)
+	TMatrixD* dataMatrix_ROOT= 0;
+	try{
+		Rcpp::NumericVector dataVect= Util::fR.parseEval(RVect.c_str());
+		long int N= Util::fR.parseEval(Form("length(%s)",RVect.c_str()));
+		dataMatrix_ROOT= new TMatrixD(N,1);
+
+		for(long int i=0;i<N;i++){
+			(*dataMatrix_ROOT)(i,0)= dataVect(i);
+		}
+	}//close try block
+	catch(...){
+		cerr<<"ERROR: Failed to retrieve data table and relative size with imputed values in R!"<<endl;
+		return nullptr;
+	}
+
+	return dataMatrix_ROOT;
+
+}//close ConvertRVectToROOTMatrix()
+
+
+TMatrixD* Util::ConvertRTableToROOTMatrix(std::string RTable)
+{
+	//Check table name
+	if(RTable==""){
+		cerr<<"ERROR: Empty R table name!"<<endl;	
+		return nullptr;
+	}
+
+	//Store R table to Numeric matrix and then fill TMatrixD (double copy...not efficient!!!)
+	TMatrixD* dataMatrix_ROOT= 0;
+	try{
+		Rcpp::NumericMatrix dataMatrix= Util::fR.parseEval(RTable.c_str());
+		
+		//Util::fR.parseEvalQ("N <- nrow(dataMatrix);");
+		//Util::fR.parseEvalQ("NDim <- ncol(dataMatrix);");
+		//long int N= Util::fR.parseEval("N");
+		//long int NDim= Util::fR.parseEval("NDim");
+		long int N= Util::fR.parseEval(Form("nrow(%s)",RTable.c_str()));
+		long int NDim= Util::fR.parseEval(Form("ncol(%s)",RTable.c_str()));
+		
+		dataMatrix_ROOT= new TMatrixD(N,NDim);
+		for(long int i=0;i<N;i++){
+			for(long int j=0;j<NDim;j++){
+				(*dataMatrix_ROOT)(i,j)= dataMatrix(i,j);
+			}
+		}
+	}//close try block
+	catch(...){
+		cerr<<"ERROR: Failed to retrieve data table and relative size with imputed values in R!"<<endl;
+		return nullptr;
+	}
+
+	return dataMatrix_ROOT;
+
+}//close ConvertRTableToROOTMatrix()
+
+int Util::ImportMatrixInR(TMatrixD* dataMatrix,std::string dataname)
+{
+	//## Comvert matrix to R
+	Rcpp::NumericMatrix* matrix_r= ConvertROOTMatrixToRMatrix(dataMatrix);
+	if(!matrix_r){
+		cerr<<"ERROR: Failed to convert ROOT matrix to R!"<<endl;
+		return -1;
+	}
+
+	//## Import in R prompt
+	try{
+		fR[dataname.c_str()]= *matrix_r;
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to import RNumeric matrix in R prompt!"<<endl;
+		return -1;
+	}
+
+	//Test 
+	std::stringstream ss;
+	ss<<"print("<<dataname<<")";
+	std::string RCmd= ss.str();
+	Util::fR.parseEvalQ(RCmd.c_str());
+	
+	return 0;
+
+}//close ImportMatrixInR()
+
+Rcpp::NumericMatrix* Util::ConvertROOTMatrixToRMatrix(TMatrixD* dataMatrix)
+{
+	//## Check data
+	if(!dataMatrix){
+		cerr<<"ERROR: Null ptr to data matrix given!"<<endl;
+		return nullptr;
+	}
+
+	//## Create NumericMatrix
+	long int nDim= dataMatrix->GetNcols();
+	long int N= dataMatrix->GetNrows();
+	Rcpp::NumericMatrix* matrix_r= new Rcpp::NumericMatrix(N,nDim);
+	for(long int i=0;i<N;i++){
+		for(long int j=0;j<nDim;j++){
+			(*matrix_r)(i,j)= (*dataMatrix)(i,j);
+		}//end loop dim
+	}//end loop events
+
+	return matrix_r;
+
+}//close ConvertROOTMatrixToRMatrix()
+
+
 TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction)
 {
 	//## Check data
@@ -163,6 +473,8 @@ int Util::DumpMatrixToAsciiFile(TMatrixD* dataMatrix,std::string filename)
 	return 0;
 
 }//close DumpMatrixToAsciiFile()
+
+
 
 
 }//close namespace
