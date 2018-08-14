@@ -16,7 +16,7 @@ OBJDIR  = $(TOPDIR)/obj
 
 USER_SRCS = $(wildcard $(SRCDIR)/*.cc)
 R_HOME = $(shell R RHOME)
-HEADERS_DICT = $(INCDIR)/DataReader.h $(INCDIR)/Util.h $(INCDIR)/MultipleImputation.h $(INCDIR)/MeanImputation.h $(INCDIR)/ListwiseDeletion.h
+HEADERS_DICT = $(INCDIR)/DataReader.h $(INCDIR)/Util.h $(INCDIR)/MathUtils.h  $(INCDIR)/MultipleImputation.h $(INCDIR)/MeanImputation.h $(INCDIR)/ListwiseDeletion.h $(INCDIR)/KMeansClustering.h $(INCDIR)/MNMixtureClustering.h
 
 
 OBJS = $(USER_SRCS:.cc=.o)
