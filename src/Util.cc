@@ -82,7 +82,7 @@ int Util::LoadRLibraries(std::vector<std::string> libraryNames)
 
 	//Load libraries
 	for(size_t i=0;i<libraryNames.size();i++){
-		std::string RCmd= Form("library('%s')",libraryNames[i].c_str());
+		std::string RCmd= Form("library('%s');",libraryNames[i].c_str());
 		try{
 			Util::fR.parseEval(RCmd);	
 		}
@@ -101,7 +101,7 @@ int Util::ClearRData()
 	//## Clear R environment
 	cout<<"INFO: Clearing R environment..."<<endl;
 	try{
-		fR.parseEvalQ("rm(list = ls(all = TRUE))");
+		fR.parseEvalQ("rm(list = ls(all = TRUE));");
 	}
 	catch(...){
 		cerr<<"ERROR: Failed to clear R data!"<<endl;
@@ -141,11 +141,12 @@ int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
 	std::stringstream ss;
 	ss<<"res <- nearPD("<<covMatrixRName<<", corr=FALSE, do2eigen=FALSE, ensureSymmetry= TRUE);";
 	std::string RCmd= ss.str();
+
 	try{
 		fR.parseEvalQ(RCmd);
 
 		//Remove tmp sigma
-		Util::fR.parseEvalQ(Form("rm(%s)",covMatrixRName.c_str()));
+		Util::fR.parseEvalQ(Form("rm(%s);",covMatrixRName.c_str()));
 	}
 	catch(...){
 		cerr<<"ERROR: Failed to approximate covariance to nearest symm & pos-def matrix!"<<endl;	
@@ -350,10 +351,10 @@ int Util::ImportMatrixInR(TMatrixD* dataMatrix,std::string dataname)
 	}
 
 	//Test 
-	std::stringstream ss;
-	ss<<"print("<<dataname<<")";
-	std::string RCmd= ss.str();
-	Util::fR.parseEvalQ(RCmd.c_str());
+	//std::stringstream ss;
+	//ss<<"print("<<dataname<<")";
+	//std::string RCmd= ss.str();
+	//Util::fR.parseEvalQ(RCmd.c_str());
 	
 	return 0;
 

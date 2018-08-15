@@ -32,7 +32,7 @@ std::string ConfigParser::fOutputFileName;
 //bool ConfigParser::fIsInteractiveRun;
 //bool ConfigParser::fSaveFullInfo;
 
-//## ALGORITHM INFO
+//## ALGORITHM OPTIONS
 int ConfigParser::fNDim;
 int ConfigParser::fNComponents;
 int ConfigParser::fNIterations;
@@ -42,6 +42,15 @@ int ConfigParser::fParInitMethod;
 bool ConfigParser::fRandomizeStartPars;
 bool ConfigParser::fRandomizeStartCovariancePars;
 bool ConfigParser::fRandomizeStartMeanPars;
+bool ConfigParser::fFixMeanPars;
+bool ConfigParser::fFixCovariancePars;
+bool ConfigParser::fFixFractionPars;
+bool ConfigParser::fForceDiagonalCovariance;
+
+//## STARTING VALUES
+std::vector<TMatrixD> ConfigParser::fMeanStartPars;
+std::vector<TMatrixD> ConfigParser::fCovarianceStartPars;
+std::vector<double> ConfigParser::fFractionStartPars;
 
 /*
 bool ConfigParser::fUseKMeansStart;
@@ -63,12 +72,8 @@ bool ConfigParser::fUseTruncatedEM;
 bool ConfigParser::fUseCensoredEM;
 bool ConfigParser::fUseMissingDataEM;
 
-bool ConfigParser::fFixMeanPar;
-bool ConfigParser::fFixCovariancePar;
 bool ConfigParser::fFixDeltaPar;
 bool ConfigParser::fFixNuPar;
-bool ConfigParser::fFixFractionPar;
-bool ConfigParser::fUseDiagonalCovariance;
 
 bool ConfigParser::fUseConstraint;
 bool ConfigParser::fUseRandomRegenerationAfterStuck;
@@ -172,8 +177,19 @@ ConfigParser::ConfigParser()
 	fRandomizeStartPars= false;
 	fRandomizeStartCovariancePars= false;
 	fRandomizeStartMeanPars= false;
+	fFixMeanPars= false;
+	fFixCovariancePars= false;
+	fFixFractionPars= false;
+	fForceDiagonalCovariance= false;
 
+	//### START VALUES
+	fMeanStartPars.clear();
+	fCovarianceStartPars.clear();
+	fFractionStartPars.clear();
+	
 	/*
+	fFixDeltaPar= false;
+	fFixNuPar= false;
 	fNClassificationGroups= 3;
 	fUseKMeansStart= false;
 	fUseRandomStart= true;
@@ -197,14 +213,7 @@ ConfigParser::ConfigParser()
 	fUseCensoredEM= false;
 	fUseMissingDataEM= false;
 	
-	fFixMeanPar= false;
-	fFixCovariancePar= false;
-	fFixDeltaPar= false;
-	fFixNuPar= false;
-	fFixFractionPar= false;
-
-	fUseDiagonalCovariance= false;
-
+	
 	fUseConstraint= true;
 	fUseRandomRegenerationAfterStuck= false;
 	fConstraintAlphaScale= 2;
@@ -426,7 +435,80 @@ int ConfigParser::ReadConfig(std::string filename)
     				return -1;
 					}
 		  	}//close else if
+				else if(descriptor.compare("fixMeanPars")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue;			
+					if(thisFlagValue.compare("T")==0) fFixMeanPars= true;
+					else if(thisFlagValue.compare("F")==0) fFixMeanPars= false;
+					else{
+						cerr<<"ERROR: Invalid setting for fixMeanPars, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
+				else if(descriptor.compare("fixCovariancePars")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue;			
+					if(thisFlagValue.compare("T")==0) fFixCovariancePars= true;
+					else if(thisFlagValue.compare("F")==0) fFixCovariancePars= false;
+					else{
+						cerr<<"ERROR: Invalid setting for fixCovariancePar, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
+				else if(descriptor.compare("fixFractionPars")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue;			
+					if(thisFlagValue.compare("T")==0) fFixFractionPars= true;
+					else if(thisFlagValue.compare("F")==0) fFixFractionPars= false;
+					else{
+						cerr<<"ERROR: Invalid setting for fixFractionPar, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
+				else if(descriptor.compare("forceDiagonalCovariance")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue;			
+					if(thisFlagValue.compare("T")==0) fForceDiagonalCovariance= true;
+					else if(thisFlagValue.compare("F")==0) fForceDiagonalCovariance= false;
+					else{
+						cerr<<"ERROR: Invalid setting for forceDiagonalCovariance, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
 
+				
+
+				else if(descriptor.compare("meanStartPars")==0){
+					TMatrixD meanPar(fNDim,1);
+					meanPar.Zero();
+			
+					line >> descriptor;	
+					for(int j=0;j<fNDim;j++){
+						double thisEntry;
+		    		line >> thisEntry;	
+						meanPar(j,0)= thisEntry;	
+					}
+					fMeanStartPars.push_back(meanPar);	
+				}
+				else if(descriptor.compare("covarianceStartPars")==0){
+					TMatrixD covariancePar(fNDim,fNDim);
+					covariancePar.Zero();
+			
+					line >> descriptor;	
+					for(int j=0;j<fNDim;j++){
+						for(int l=0;l<fNDim;l++){
+							double thisEntry;
+		    		 	line >> thisEntry;	
+							covariancePar(j,l)= thisEntry;	
+						}
+					}
+					fCovarianceStartPars.push_back(covariancePar);	
+				}
+				else if(descriptor.compare("fractionStartPars")==0){
+					double thisEntry;
+					line >> descriptor >> thisEntry;
+					fFractionStartPars.push_back(thisEntry);
+				}
 
 				/*
 				else if(descriptor.compare("nSimEvents")==0){
@@ -572,28 +654,7 @@ int ConfigParser::ReadConfig(std::string filename)
 		  	}//close else if
 				
 
-				else if(descriptor.compare("fixMeanPar")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue;			
-					if(thisFlagValue.compare("T")==0) fFixMeanPar= true;
-					else if(thisFlagValue.compare("F")==0) fFixMeanPar= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for fixMeanPar, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
-				else if(descriptor.compare("fixCovariancePar")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue;			
-					if(thisFlagValue.compare("T")==0) fFixCovariancePar= true;
-					else if(thisFlagValue.compare("F")==0) fFixCovariancePar= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for fixCovariancePar, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
+				
 				else if(descriptor.compare("fixDeltaPar")==0){
 					std::string thisFlagValue;
 		    	line >> descriptor >> thisFlagValue;			
@@ -616,29 +677,8 @@ int ConfigParser::ReadConfig(std::string filename)
 						exit(1);
 					}
 		  	}//close else if
-				else if(descriptor.compare("fixFractionPar")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue;			
-					if(thisFlagValue.compare("T")==0) fFixFractionPar= true;
-					else if(thisFlagValue.compare("F")==0) fFixFractionPar= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for fixFractionPar, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
-
-				else if(descriptor.compare("useDiagonalCovariance")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue;			
-					if(thisFlagValue.compare("T")==0) fUseDiagonalCovariance= true;
-					else if(thisFlagValue.compare("F")==0) fUseDiagonalCovariance= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for useDiagonalCovariance, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
+				
+				
 
 				else if(descriptor.compare("useConstraint")==0){
 					std::string thisFlagValue;
@@ -1395,8 +1435,12 @@ void ConfigParser::Print()
 	cout<<"UseStoppingCriteria? "<<fUseStoppingCriteria<<"  Epsilon: "<<fEpsilon<<endl;
 	cout<<"ParInitMethod: "<<fParInitMethod<<endl;
 	cout<<"RandomizeStartPars? "<<fRandomizeStartPars<<endl;
-	cout<<"RandomizeStartCovariancePars? "<<fRandomizeStartCovariancePars<<endl;
-	cout<<"RandomizeStartMeanPars? "<<fRandomizeStartMeanPars<<endl;
+	cout<<"FixMeanPars? "<<fFixMeanPars<<endl;
+	cout<<"FixCovariancePars? "<<fFixCovariancePars<<endl;
+	cout<<"FixFractionPars? "<<fFixFractionPars<<endl;
+	cout<<"ForceDiagonalCovariance? "<<fForceDiagonalCovariance<<endl;	
+	cout<<"== MEAN START PARS =="<<endl;
+	for(size_t k=0;k<fMeanStartPars.size();k++) fMeanStartPars[k].Print();
 	cout<<"################################"<<endl;
 
 }//close Print()

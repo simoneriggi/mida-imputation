@@ -67,6 +67,15 @@ class ConfigParser {
 		static bool fRandomizeStartPars;
 		static bool fRandomizeStartCovariancePars;
 		static bool fRandomizeStartMeanPars;
+		static bool fFixMeanPars;
+		static bool fFixCovariancePars;
+		static bool fFixFractionPars;
+		static bool fForceDiagonalCovariance;
+	
+		//## Start user parameters
+		static std::vector<TMatrixD> fMeanStartPars;
+		static std::vector<TMatrixD> fCovarianceStartPars;
+		static std::vector<double> fFractionStartPars;	
 
 		/*
 		static bool fUseDeltaLStoppingCriteria;	
@@ -116,13 +125,10 @@ class ConfigParser {
 		static bool fUseScaleMatrixEigenBoundConstraint;
 		static bool fUseLocationConstraint;
 		static bool fUseLocationDiffConstraint;
-		static bool fFixMeanPar;
-		static bool fFixCovariancePar;
+		
 		static bool fFixDeltaPar;
 		static bool fFixNuPar;
-		static bool fFixFractionPar;
-		static bool fUseDiagonalCovariance;
-	
+		
 		static TMatrixD* fMeanConstraintSign;
 		static TMatrixD* fSigmaConstraintSign;
 	

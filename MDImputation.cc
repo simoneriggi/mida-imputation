@@ -330,6 +330,15 @@ int SetMNClusteringOptionsFromConfigFile(MNClusteringOptions& options)
 	options.randomizeStartPars= ConfigParser::fRandomizeStartPars;
 	options.randomizeStartCovariancePars= ConfigParser::fRandomizeStartCovariancePars;
 	options.randomizeStartMeanPars= ConfigParser::fRandomizeStartMeanPars;
+	options.fixFractionPars= ConfigParser::fFixFractionPars;
+	options.fixMeanPars= ConfigParser::fFixMeanPars;
+	options.fixCovariancePars= ConfigParser::fFixCovariancePars;
+	options.forceDiagonalCovariance= ConfigParser::fForceDiagonalCovariance;
+
+	//Set start values
+	options.P_start= ConfigParser::fFractionStartPars;
+	options.Mu_start= ConfigParser::fMeanStartPars;
+	options.Sigma_start= ConfigParser::fCovarianceStartPars;
 
 	return 0;
 
@@ -377,11 +386,11 @@ int SetMNClusteringOptions(MNClusteringOptions& options)
 
 		//Set mean & sigma pars
 		for(int k=0;k<nComponents;k++){
-			TMatrixD meanPars(1,nDim);
+			TMatrixD meanPars(nDim,1);
 			TMatrixD sigmaPars(nDim,nDim);
 			for(int j=0;j<nDim;j++){
 				int index= j + k*nDim;	
-				meanPars(0,j)= componentMeans_start[index];
+				meanPars(j,0)= componentMeans_start[index];
 				for(int l=0;l<nDim;l++){
 					index= k*nDim*nDim + l + j*nDim;
 					sigmaPars(j,l)= componentSigmas_start[index];

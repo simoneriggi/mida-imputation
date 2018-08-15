@@ -75,9 +75,9 @@ struct MNClusteringOptions
 		nIterations= 100;
 		useStoppingCriteria= true;
 		epsilon= 5.e-5;
-		fixFractionPar= false;
-		fixMeanPar= false;
-		fixCovariancePar= false;
+		fixFractionPars= false;
+		fixMeanPars= false;
+		fixCovariancePars= false;
 		forceDiagonalCovariance= false;
 		P_start.clear();
 		Mu_start.clear();
@@ -95,9 +95,9 @@ struct MNClusteringOptions
 	int nIterations;
 	bool useStoppingCriteria;
 	double epsilon;
-	bool fixFractionPar;
-	bool fixMeanPar;
-	bool fixCovariancePar;
+	bool fixFractionPars;
+	bool fixMeanPars;
+	bool fixCovariancePars;
 	bool forceDiagonalCovariance;
 	
 	//- User mixture pars

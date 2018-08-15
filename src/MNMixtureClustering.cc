@@ -948,10 +948,10 @@ int MNMixtureClustering::RunEM_MStep()
 		double tauSumInv= 1./tauSum;		
 	
 		//## Update fraction parameters
-		if(!fOptions.fixFractionPar) fP[k]= tauSum/(double)(fN);
+		if(!fOptions.fixFractionPars) fP[k]= tauSum/(double)(fN);
 
 		//## Update mean parameters
-		if(!fOptions.fixMeanPar) {
+		if(!fOptions.fixMeanPars) {
 			fMu[k]= muSum*tauSumInv;
 
 			//## Apply correction term for truncated EM
@@ -961,7 +961,7 @@ int MNMixtureClustering::RunEM_MStep()
 
 		
 		//## Update sigma 	
-		if(!fOptions.fixCovariancePar){
+		if(!fOptions.fixCovariancePars){
 
 			//if(fUseMissingDataEM){
 
@@ -1014,7 +1014,7 @@ int MNMixtureClustering::RunEM_MStep()
 		}//close if forceDiagonalCovariance
 
 		//## Check covariance matrix integrity
-		if(!fOptions.fixCovariancePar){
+		if(!fOptions.fixCovariancePars){
 			CheckCovariance(k);
 		}
 
@@ -1023,6 +1023,391 @@ int MNMixtureClustering::RunEM_MStep()
 	return 0;
 
 }//close RunEM_MStep()
+
+/*
+void MGMixtureFitter::EMConstrain(){
+
+	//###########################
+	//####  MEAN CONSTRAINT #####
+	//###########################
+	//## Apply constraints on component means
+	if(!fFixMeanPar){
+	
+		//### MEAN BOUND CONSTRAINT
+		std::vector<TMatrixD> alphaMuBoundList;
+		alphaMuBoundList.clear();
+		alphaMuBoundList.resize(0);
+		bool isMuBoundConstraintViolated= false;
+		bool isBadMuBound[fNComponents];
+
+		if(fUseMeanBoundConstraint){
+		
+			for(int k=0;k<fNComponents;k++){
+				isBadMuBound[k]= false;
+
+				TMatrixD alphaMuBound(fNDim,1);
+				alphaMuBound.Zero();
+	
+				for(int j=0;j<fNDim;j++){
+					alphaMuBound(j,0)= 1;
+					double constraintSign= 1;
+					
+					double a_k= fMu_min[k](j,0);
+					double b_k= fMu_max[k](j,0);
+					
+					double Mu= fMu[k](j,0);
+					double Mu_safe= fMu_safe[k](j,0);
+				
+					double alphaMu_minBound= (a_k-Mu_safe)/(Mu-Mu_safe);
+					double alphaMu_maxBound= (b_k-Mu_safe)/(Mu-Mu_safe);
+
+					if(constraintSign*Mu<constraintSign*a_k){//min constraint violated
+						alphaMuBound(j,0)= alphaMu_minBound;
+						isBadMuBound[k]= true;
+						isMuBoundConstraintViolated= true;
+						cout<<"MGMixtureFitter::EMConstrain(): INFO: Mean min bound constraint violated for component no. "<<k+1<<":  Mu="<<Mu<<"  Mu_min="<<a_k<<"  Mu_safe="<<Mu_safe<<"  alpha="<<alphaMu_minBound<<endl;
+
+						if(alphaMu_minBound<0 || alphaMu_minBound>1){
+							cerr<<"MGMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for mu min bound constraint for component no. "<<k+1<<" (alpha="<<alphaMu_minBound<<") ...exit!"<<endl;
+							exit(1);
+						}		
+					}
+					
+					if(constraintSign*Mu>b_k){//max constraint violated
+						alphaMuBound(j,0)= alphaMu_maxBound;
+						isBadMuBound[k]= true;
+						isMuBoundConstraintViolated= true;
+						cout<<"MGMixtureFitter::EMConstrain(): INFO: Mean max bound constraint violated for component no. "<<k+1<<":  Mu="<<Mu<<"  Mu_max="<<b_k<<"  Mu_safe(k)="<<Mu_safe<<"  alpha="<<alphaMu_maxBound<<endl;	
+						if(alphaMu_maxBound<0 || alphaMu_maxBound>1){
+							cerr<<"MGMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for mu max bound constraint for component no. "<<k+1<<" (alpha="<<alphaMu_maxBound<<") ...exit!"<<endl;
+							exit(1);
+						}	
+					}	
+					
+				}//end loop dim
+
+				alphaMuBoundList.push_back(alphaMuBound);
+				
+			}//end loop components
+		}//close if use mean bound constraint
+
+
+	
+		//### MEAN GROUP CONSTRAINT
+		std::vector<double> alphaMuList;
+		alphaMuList.clear();
+		alphaMuList.resize(0);
+		bool isMuGroupConstraintViolated= false;
+
+		//## Check if mean order constraint is violated
+		if(fUseMeanConstraint){
+
+			for(int j=0;j<fNDim;j++){
+				//double constraintSign= 1;
+				//if(j==1) constraintSign= -1;
+				double constraintSign= (*fMeanConstraintSign)(j,0);
+
+				for(int k=0;k<fNComponents-1;k++){
+					double Mu_k= fMu[k](j,0);
+					double Mu_k_1= fMu[k+1](j,0);
+					double safeMu_k= fMu_safe[k](j,0);
+					double safeMu_k_1= fMu_safe[k+1](j,0);
+					double denom= 1.-(Mu_k_1-Mu_k)/(safeMu_k_1-safeMu_k);
+					double alpha= 1./denom;
+		
+					if(constraintSign*Mu_k>constraintSign*Mu_k_1) continue;//constraint satisfied...skip
+		
+					cout<<"MGMixtureFitter::EMConstrain(): INFO: Mean constraint violated for component no. "<<k+1<<":  mu(k)="<<Mu_k<<"  mu(k+1)="<<Mu_k_1<<"  mu_safe(k)="<<safeMu_k<<"  mu_safe(k+1)="<<safeMu_k_1<<"  alpha="<<alpha<<endl;
+
+					if(alpha<0 || alpha>1){
+						cerr<<"MGMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for mu group constraint for component "<<k+1<<"-"<<k+2<<" (alpha="<<alpha<<") ...exit!"<<endl;
+						exit(1);
+					}	
+
+					isMuGroupConstraintViolated= true;
+					alphaMuList.push_back(alpha);
+
+				}//end loop components	
+			}//end loop dim
+
+		}//close if use mean constraint
+
+
+		//## Computing min alpha
+		double minAlpha_groupConstraint= 1;
+		if(isMuGroupConstraintViolated){
+			cout<<"MGMixtureFitter::EMConstrain(): INFO: alphaMuList(";
+			for(unsigned int i=0;i<alphaMuList.size();i++){
+				cout<<alphaMuList[i]<<",";
+				if(alphaMuList[i]<minAlpha_groupConstraint) minAlpha_groupConstraint= alphaMuList[i];
+			}	
+			cout<<")"<<endl;
+		}
+		
+		double minAlpha_boundConstraint[fNComponents];
+		for(int k=0;k<fNComponents;k++){
+			minAlpha_boundConstraint[k]= 1;
+			if(isBadMuBound[k]){
+				minAlpha_boundConstraint[k]= alphaMuBoundList[k].Min();	
+			}
+		}//end loop components
+
+		//## Updating the mean vector
+		if(isMuGroupConstraintViolated || isMuBoundConstraintViolated){
+			cout<<"MGMixtureFitter::EMConstrain(): INFO: Updating mean vector..."<<endl;
+		
+			std::vector<bool> hasToBeGenerated;
+			hasToBeGenerated.assign(fNComponents,false);
+			bool hasToRegenerateMu= false;
+
+			for(int k=0;k<fNComponents;k++){
+				if(!isMuGroupConstraintViolated && !isBadMuBound[k]) continue;
+
+				double alphaMuMin= min(minAlpha_groupConstraint,minAlpha_boundConstraint[k]);
+				double alphaMuOpt= alphaMuMin/fConstraintAlphaScale;
+
+				cout<<"MGMixtureFitter::EMConstrain(): INFO: Component no. "<<k+1<<": minAlpha_groupConstraint="<<minAlpha_groupConstraint<<"  minAlpha_boundConstraint="<<minAlpha_boundConstraint[k]<<"  alphaMuMin="<<alphaMuMin<<"  alphaMuOpt="<<alphaMuOpt<<endl;
+
+				if(alphaMuOpt<fConstraintAlphaTolerance) {
+					cerr<<"MGMixtureFitter::EMConstrain(): WARNING: Mean vector for component "<<k+1<<" is stuck in constraint ("<<alphaMuOpt<<"<"<<fConstraintAlphaTolerance<<")... ...regenerate!"<<endl;
+					hasToRegenerateMu= true;
+					hasToBeGenerated[k]= true;	
+				}
+			
+				for(int j=0;j<fNDim;j++){
+					double Mu= fMu[k](j,0);
+					double safeMu= fMu_safe[k](j,0);
+					fMu[k](j,0)= (1.-alphaMuOpt)*safeMu + alphaMuOpt*Mu;
+				}//end loop dim		
+			}//end loop components
+		
+			if(hasToRegenerateMu && fUseRandomRegenerationAfterStuck){
+				cout<<"MGMixtureFitter::EMConstrain(): INFO: Regenerating mu pars..."<<endl;
+				RandomizeMeanParFromModel(hasToBeGenerated);	
+			}
+
+		}//close if constraint violated
+
+	}//close if fFixMeanPar
+
+
+	//############################
+	//##   SIGMA CONSTRAINTS    ##
+	//############################
+	cout<<"Sigma Constraint"<<endl;
+	//## Apply constraints on component covariances
+	if(!fFixCovariancePar){
+
+		
+		bool isBadSigmaBound[fNComponents];
+		for(int k=0;k<fNComponents;k++) isBadSigmaBound[k]= false;
+		bool isSigmaBoundConstraintViolated= false;
+		std::vector<TMatrixD> alphaSigmaBoundList;
+		alphaSigmaBoundList.clear();
+		alphaSigmaBoundList.resize(0);
+
+		if(fUseCovarianceBoundConstraint){
+
+			for(int k=0;k<fNComponents;k++){
+				
+				isBadSigmaBound[k]= false;
+
+				TMatrixD alphaSigmaBound(fNDim,fNDim);
+				alphaSigmaBound.Zero();
+
+				for(int j=0;j<fNDim;j++){
+					for(int l=0;l<fNDim;l++){
+						double constraintSign= 1;
+						alphaSigmaBound(j,l)= 1;
+
+
+						//if(j!=l) continue;//Do not apply constraint on covariance terms
+
+						
+						double Sigma= fSigma[k](j,l);
+						double Sigma_safe= fSigma_safe[k](j,l);
+						double Sigma_min= fSigma_min[k](j,l);
+						double Sigma_max= fSigma_max[k](j,l);
+						double alphaSigma_minBound= (Sigma_min-Sigma_safe)/(Sigma-Sigma_safe);
+						double alphaSigma_maxBound= (Sigma_max-Sigma_safe)/(Sigma-Sigma_safe);
+		
+						
+						if(constraintSign*Sigma<constraintSign*Sigma_min){//min constraint violated
+							alphaSigmaBound(j,l)= alphaSigma_minBound;
+							isBadSigmaBound[k]= true;
+							isSigmaBoundConstraintViolated= true;
+
+							if(j==l) cout<<"INFO: Sigma min constraint violated for component no. "<<k+1<<":  Sigma(k)="<<Sigma<<"  Sigma_min(k)="<<Sigma_min<<"  Sigma_safe(k)="<<Sigma_safe<<"  alpha="<<alphaSigma_minBound<<endl;	
+							else cout<<"INFO: Covariance min constraint violated for component no. "<<k+1<<":  Sigma(k)="<<Sigma<<"  Sigma_min(k)="<<Sigma_min<<"  Sigma_safe(k)="<<Sigma_safe<<"  alpha="<<alphaSigma_minBound<<endl;	
+
+							if(alphaSigma_minBound<0 || alphaSigma_minBound>1){
+								cerr<<"MSNMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for covariance min bound constraint for component "<<k+1<<"-"<<k+2<<" (alpha="<<alphaSigma_minBound<<") ...exit!"<<endl;
+								exit(1);
+							}
+
+						}
+						if(constraintSign*Sigma>constraintSign*Sigma_max){//max constraint violated
+							alphaSigmaBound(j,l)= alphaSigma_maxBound;
+							isBadSigmaBound[k]= true;
+							isSigmaBoundConstraintViolated= true;
+							if(j==l) cout<<"INFO: Sigma max constraint violated for component no. "<<k+1<<":  Sigma(k)="<<Sigma<<"  Sigma_max(k)="<<Sigma_max<<"  Sigma_safe(k)="<<Sigma_safe<<"  alpha="<<alphaSigma_maxBound<<endl;
+							else cout<<"INFO: Covariance max constraint violated for component no. "<<k+1<<":  Sigma(k)="<<Sigma<<"  Sigma_max(k)="<<Sigma_max<<"  Sigma_safe(k)="<<Sigma_safe<<"  alpha="<<alphaSigma_maxBound<<endl;
+
+							if(alphaSigma_maxBound<0 || alphaSigma_maxBound>1){
+								cerr<<"MSNMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for covariance max bound constraint for component "<<k+1<<"-"<<k+2<<" (alpha="<<alphaSigma_maxBound<<") ...exit!"<<endl;
+								exit(1);
+							}
+						}
+
+					}//end loop dim
+				}//end loop dim
+
+				
+				alphaSigmaBoundList.push_back(alphaSigmaBound);
+			}//end loop components
+
+		}//close if fUseCovarianceBoundConstraint
+
+
+		//## COVARIANCE GROUP CONSTRAINT
+		
+		std::vector<double> alphaSigmaList;
+		alphaSigmaList.clear();
+		alphaSigmaList.resize(0);
+
+		bool isBadSigma= false;
+		bool isSigmaGroupConstraintViolated= false;
+
+		if(fUseCovarianceConstraint){
+			
+			for(int j=0;j<fNDim;j++){
+				double constraintSign= (*fSigmaConstraintSign)(j,0);
+			
+				for(int k=0;k<fNComponents-1;k++){
+					
+					double Sigma_k= fSigma[k](j,j);
+					double Sigma_k_1= fSigma[k+1](j,j);
+					double safeSigma_k= fSigma_safe[k](j,j);
+					double safeSigma_k_1= fSigma_safe[k+1](j,j);
+					double denomSigma= 1.-(Sigma_k_1-Sigma_k)/(safeSigma_k_1-safeSigma_k);
+					double alphaSigma= 1./denomSigma;
+		
+					
+
+					if(constraintSign*Sigma_k>constraintSign*Sigma_k_1){
+						cout<<"MGMixtureFitter::EMConstrain(): INFO: Covariance constraint violated for component no. "<<k+1<<":  Sigma(k)="<<Sigma_k<<"  Sigma(k+1)="<<Sigma_k_1<<"  safeSigma(k)="<<safeSigma_k<<"  safeSigma(k+1)="<<safeSigma_k_1<<"  alpha="<<alphaSigma<<endl;
+
+						if(alphaSigma<0 || alphaSigma>1){
+							cerr<<"MGMixtureFitter::EMConstrain(): ERROR: Invalid alpha value for covariance group constraint for component "<<k+1<<"-"<<k+2<<" (alpha="<<alphaSigma<<") ...exit!"<<endl;
+							exit(1);
+						}
+
+						isBadSigma= true;
+						isSigmaGroupConstraintViolated= true;
+						alphaSigmaList.push_back(alphaSigma);	
+					}//close if Sigma constrain violated
+
+				}//end loop components	
+			}//end loop dim
+		}//close if fUseCovarianceConstraint
+
+	
+		//## Computing min alpha
+		cout<<"Computing min alpha "<<endl;
+		
+		double minAlpha_groupSigmaConstraint= 1;
+		if(isSigmaGroupConstraintViolated){
+			cout<<"MGMixtureFitter::EMConstrain(): INFO: alphaSigmaList(";
+			for(unsigned int i=0;i<alphaSigmaList.size();i++){
+				cout<<alphaSigmaList[i]<<",";
+				if(alphaSigmaList[i]<minAlpha_groupSigmaConstraint) minAlpha_groupSigmaConstraint= alphaSigmaList[i];
+			}	
+			cout<<")"<<endl;
+		}
+
+		double minAlpha_boundSigmaConstraint[fNComponents];
+		for(int k=0;k<fNComponents;k++){
+			minAlpha_boundSigmaConstraint[k]= 1;
+			if(isBadSigmaBound[k]){
+				minAlpha_boundSigmaConstraint[k]= alphaSigmaBoundList[k].Min();	
+			}
+		}//end loop components
+
+		
+
+		if( isSigmaGroupConstraintViolated || isSigmaBoundConstraintViolated ){
+			cout<<"MSNMixtureFitter::EMConstrain(): INFO: Updating covariance matrix..."<<endl;
+			
+			std::vector<bool> hasToBeGenerated;
+			hasToBeGenerated.assign(fNComponents,false);
+			bool hasToRegenerateSigma= false;
+
+			for(int k=0;k<fNComponents;k++){
+				if(!isSigmaGroupConstraintViolated && !isBadSigmaBound[k]) continue;
+
+				double alphaSigmaMin= min(minAlpha_groupSigmaConstraint,minAlpha_boundSigmaConstraint[k]);
+				double alphaSigmaOpt= alphaSigmaMin/fConstraintAlphaScale;
+
+				cout<<"MGMixtureFitter::EMConstrain(): INFO: Component no. "<<k+1<<": minAlpha_groupConstraint="<<minAlpha_groupSigmaConstraint<<"  minAlpha_boundConstraint="<<minAlpha_boundSigmaConstraint[k]<<"  alphaSigmaMin="<<alphaSigmaMin<<"  alphaSigmaOpt="<<alphaSigmaOpt<<endl;
+
+				if(alphaSigmaOpt<fConstraintAlphaTolerance) {
+					cerr<<"MGMixtureFitter::EMConstrain(): WARNING: Covariance for component "<<k+1<<" is stuck in constraint ("<<alphaSigmaOpt<<"<"<<fConstraintAlphaTolerance<<")... ...regenerate!"<<endl;
+					hasToRegenerateSigma= true;
+					hasToBeGenerated[k]= true;	
+				}
+			
+					
+				for(int j=0;j<fNDim;j++){
+					for(int l=0;l<fNDim;l++){
+						double Sigma= fSigma[k](j,l);
+						double safeSigma= fSigma_safe[k](j,l);
+						fSigma[k](j,l)= (1.-alphaSigmaOpt)*safeSigma + alphaSigmaOpt*Sigma;
+					}//end loop dim
+				}//end loop dim
+
+			}//end loop components
+		
+			if(hasToRegenerateSigma && fUseRandomRegenerationAfterStuck){
+				cout<<"MGMixtureFitter::EMConstrain(): INFO: Regenerating covariance pars..."<<endl;
+				RandomizeSigmaParFromModel(hasToBeGenerated);	
+			}
+		
+			//## Re-Calculate sigma starting from the updated covariance
+			for(int k=0;k<fNComponents;k++){
+				fSigmaEigen[k]= MathUtilities::GetEigenDecomposition(fSigma[k]);	
+			}//end loop components
+
+		}//close if (fUseCovarianceConstraint || fUseCovarianceBoundConstraint)
+	
+
+	}//close if fFixCovariancePar
+
+
+
+
+	//## Set the current constrained set as "safe"
+	for(int k=0;k<fNComponents;k++){
+		fMu_safe[k]= fMu[k];
+		fSigma_safe[k]= fSigma[k];
+		fSigmaEigen_safe[k]= fSigmaEigen[k];	
+		fP_safe[k]= fP[k];
+		
+		cout<<"MGMixtureFitter::EMConstrain(): Component "<<k+1<<" =="<<endl;
+		cout<<"p= "<<fP[k]<<endl;
+		cout<<"Mu= (";
+		for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(j,0)<<",";
+		cout<<(fMu[k])(fNDim-1,0)<<")"<<endl; 
+			
+		cout<<"Sigma= (";
+		for(int j=0;j<fNDim;j++){
+			for(int l=0;l<fNDim;l++) cout<<(fSigma[k])(j,l)<<",";
+		}	
+		cout<<")"<<endl;
+	}//end loop components
+
+}//close MGMixtureFitter::EMConstrain()
+*/
+
 
 int MNMixtureClustering::InitParsToUser()
 {
@@ -1039,13 +1424,18 @@ int MNMixtureClustering::InitParsToUser()
 	}
 	
 	//Check component means
+	cout<<"DEBUG: Print start means..."<<endl;
+	for(size_t k=0;k<fOptions.Mu_start.size();k++){
+		fOptions.Mu_start[k].Print();
+	}
+
 	int nMeanComponents= static_cast<int>(fOptions.Mu_start.size());
 	if(nMeanComponents != fOptions.nComponents){
 		cerr<<"ERROR: Number of user mean components ("<<nMeanComponents<<") is different from nComponents ("<<fOptions.nComponents<<")!"<<endl;
 		return -1;
 	}
 	for(size_t k=0;k<(fOptions.Mu_start).size();k++){
-		int meanVectDim= (fOptions.Mu_start)[k].GetNcols();
+		int meanVectDim= (fOptions.Mu_start)[k].GetNrows();
 		if(meanVectDim!=fNDim){
 			cerr<<"ERROR: User mean vector size for component no. "<<k+1<<" is not equal to nDim="<<fNDim<<"!"<<endl;
 			return -1;
@@ -1067,6 +1457,29 @@ int MNMixtureClustering::InitParsToUser()
 			return -1;
 		}
 		fSigma[k]= (fOptions.Sigma_start)[k];
+	}//end loop components
+
+	//Compute Sigma inv matrix and eigenvalues
+	for(int k=0;k<fOptions.nComponents;k++) {
+		double SigmaDet= 0.;
+		TMatrixD SigmaInv(fNDim,fNDim);
+		TMatrixD Sigma(fNDim,fNDim);
+		Sigma= fSigma[k];
+
+		SigmaInv = Sigma.Invert(&SigmaDet);
+		fSigmaInv[k]= SigmaInv;
+		fSigmaDet[k]= SigmaDet;	
+  		
+		if (SigmaDet<=0) {
+			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
+			return -1;
+		}	
+		
+		TMatrixDEigen SigmaDecomposition(fSigma[k]);
+		TMatrixD SigmaEigenvalues(fNDim,fNDim);
+		SigmaEigenvalues= SigmaDecomposition.GetEigenValues();
+		fSigmaEigen[k]= SigmaEigenvalues;
+
 	}//end loop components
 
 	return 0;
@@ -1116,6 +1529,29 @@ int MNMixtureClustering::InitParsToKMeans()
 		for(int j=0;j<fNDim;j++){
 			fMu[k](j,0)= (*clusterCenters)(k,j); 
 		}//end loop dim
+	}//end loop components
+
+	//Compute Sigma inv matrix and eigenvalues
+	for(int k=0;k<fOptions.nComponents;k++) {
+		double SigmaDet= 0.;
+		TMatrixD SigmaInv(fNDim,fNDim);
+		TMatrixD Sigma(fNDim,fNDim);
+		Sigma= fSigma[k];
+
+		SigmaInv = Sigma.Invert(&SigmaDet);
+		fSigmaInv[k]= SigmaInv;
+		fSigmaDet[k]= SigmaDet;	
+  		
+		if (SigmaDet<=0) {
+			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
+			return -1;
+		}	
+		
+		TMatrixDEigen SigmaDecomposition(fSigma[k]);
+		TMatrixD SigmaEigenvalues(fNDim,fNDim);
+		SigmaEigenvalues= SigmaDecomposition.GetEigenValues();
+		fSigmaEigen[k]= SigmaEigenvalues;
+
 	}//end loop components
 
 	//## Print pars
