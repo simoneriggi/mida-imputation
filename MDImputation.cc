@@ -3,6 +3,7 @@
 #include <MultipleImputation.h>
 #include <MNMixtureClustering.h>
 #include <Util.h>
+#include <ConfigParser.h>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -79,6 +80,7 @@ void Usage(char* exeName){
 	cout<<"-R, --nruns=[NRUNS] \t Number of runs for MultipleImputation method (default=5)"<<endl;
 	
 	cout<<"Clustering Options:"<<endl;
+	cout<<"-c, --config=[CONFIG_FILENAME] \t Configuration file with options (NB: override all command line options if provided)"<<endl;
 	cout<<"-u, --userpars \t Set starting parameters to user values provided"<<endl;
 	cout<<"-d, --ndim=[NDIM] \t Number of variable dimension to be used when setting starting mixture parameters"<<endl;
 	cout<<"-k, --ncomponents=[NCOMPONENTS] \t Number of components to be fitted"<<endl;
@@ -102,6 +104,7 @@ static const struct option options_tab[] = {
 	{ "sigmas", required_argument, 0, 'S' },
 	{ "fractions", required_argument, 0, 'p' },
 	{ "userpars", no_argument, 0, 'u' },
+	{ "config", required_argument, 0, 'c' },
   {(char*)0, (int)0, (int*)0, (int)0}
 };
 
@@ -110,9 +113,11 @@ static const struct option options_tab[] = {
 int imputationMethod= 1;
 std::string inputFileName= "";
 std::string outputFileName= "Output.dat";
+std::string configFileName= "";
 long int nRuns= 5;
 long int nRepeatedRuns= 100;
 int nComponents= 0;
+bool setOptionsFromConfigFile= false;
 bool useStartingUserPars= false;
 int nDim= 0;
 std::vector<double> componentWeights_start;
@@ -121,7 +126,8 @@ std::vector<double> componentSigmas_start;
 
 //Functions
 int SetMNClusteringOptions(MNClusteringOptions& options);
-
+int SetMNClusteringOptionsFromConfigFile(MNClusteringOptions& options);
+TMatrixD* RunMNClustering();
 
 int main(int argc, char **argv)
 {
@@ -140,7 +146,7 @@ int main(int argc, char **argv)
 	int c = 0;
   int option_index = 0;
 
-	while((c = getopt_long(argc, argv, "hi:o::m::r::R::k:M:S:p:d:u",options_tab, &option_index)) != -1) {
+	while((c = getopt_long(argc, argv, "hi:o::m::r::R::k:M::S::p::d::uc::",options_tab, &option_index)) != -1) {
     
     switch (c) {
 			case 0 : 
@@ -181,6 +187,12 @@ int main(int argc, char **argv)
 			{
 				nDim= atoi(optarg);
 				break;	
+			}
+			case 'c':	
+			{
+				configFileName= std::string(optarg);	
+				setOptionsFromConfigFile= true;
+				break;
 			}
 			case 'u':	
 			{
@@ -224,41 +236,17 @@ int main(int argc, char **argv)
 	//=====================================================
 	TMatrixD* inputedDataMatrix= 0;
 	if(imputationMethod==eMean){
-		//inputedDataMatrix= MeanImputation::RunImputation(inputFileName);
 		inputedDataMatrix= MeanImputation::RunImputation(inputFileName,"");
 	}
 	else if(imputationMethod==eLD){
-		//inputedDataMatrix= ListwiseDeletion::RunImputation(inputFileName,{'\n'});
-		//inputedDataMatrix= ListwiseDeletion::RunImputation(inputFileName,{' '});
-		//inputedDataMatrix= ListwiseDeletion::RunImputation(inputFileName," ");
 		inputedDataMatrix= ListwiseDeletion::RunImputation(inputFileName,"");
 	}
 	else if(imputationMethod==eMI){
 		inputedDataMatrix= MultipleImputation::RunImputation(inputFileName,nRuns,nRepeatedRuns);
 	}
 	else if(imputationMethod==eMNClustering){
-		
-		//Set options
-		MNClusteringOptions options;
-		if(SetMNClusteringOptions(options)<0){
-			cerr<<"ERROR: Invalid options passed to MNClustering!"<<endl;	
-			return -1;
-		}
-
-		//Run clustering
-		MNMixtureClustering* clustering= new MNMixtureClustering;
-		if(clustering->RunImputation(inputFileName,options)<0){
-			cerr<<"ERROR: MN clustering imputation failed!"<<endl;
-			return -1;
-		}
-		TMatrixD* inpData= clustering->GetImputedData();
-		inputedDataMatrix= (TMatrixD*)inpData->Clone();
-
-		//Clear 
-		delete clustering;
-		clustering= 0;
-
-	}//close if
+		inputedDataMatrix= RunMNClustering();
+	}
 	else{
 		cerr<<"ERROR: Invalid imputation method selected (method="<<imputationMethod<<") ...exit!"<<endl;
 		return -1;
@@ -280,6 +268,72 @@ int main(int argc, char **argv)
 	
 }//close macro
 
+
+TMatrixD* RunMNClustering()
+{
+	//## Set options
+	MNClusteringOptions options;
+	if(setOptionsFromConfigFile){
+		if(SetMNClusteringOptionsFromConfigFile(options)<0){
+			cerr<<"ERROR: Invalid options passed to MNClustering from config file "<<configFileName<<"!"<<endl;	
+			return nullptr;
+		}
+	}
+	else{
+		if(SetMNClusteringOptions(options)<0){
+			cerr<<"ERROR: Invalid options passed to MNClustering from command line!"<<endl;	
+			return nullptr;
+		}
+	}
+
+	//Run clustering
+	MNMixtureClustering* clustering= new MNMixtureClustering;
+	if(clustering->RunImputation(inputFileName,options)<0){
+		cerr<<"ERROR: MN clustering imputation failed!"<<endl;
+		delete clustering;
+		clustering= 0;
+		return nullptr;
+	}
+	
+	//Retrieve imputed data matrix (copy it because it is destroyed when MNMixtureClustering is destroyed)	
+	TMatrixD* inpData= clustering->GetImputedData();
+	TMatrixD* inputedDataMatrix= (TMatrixD*)inpData->Clone();
+
+	//Clear data
+	if(clustering){
+		delete clustering;
+		clustering= 0;
+	}
+
+	return inputedDataMatrix;
+
+}//close RunMNClustering()
+
+int SetMNClusteringOptionsFromConfigFile(MNClusteringOptions& options)
+{
+	//Parse config file
+	ConfigParser parser;
+	if(parser.ReadConfig(configFileName)<0){
+		cerr<<"ERROR: Failed to parse config file "<<configFileName<<"!"<<endl;
+		return -1;
+	}
+	
+	//Set options
+	inputFileName= ConfigParser::fInputFileName;
+	outputFileName= ConfigParser::fOutputFileName;
+	options.nComponents= ConfigParser::fNComponents;
+	int nDim= ConfigParser::fNDim;
+	options.nIterations= ConfigParser::fNIterations;
+	options.useStoppingCriteria= ConfigParser::fUseStoppingCriteria;
+	options.epsilon= ConfigParser::fEpsilon;
+	options.parInitMethod= ConfigParser::fParInitMethod;
+	options.randomizeStartPars= ConfigParser::fRandomizeStartPars;
+	options.randomizeStartCovariancePars= ConfigParser::fRandomizeStartCovariancePars;
+	options.randomizeStartMeanPars= ConfigParser::fRandomizeStartMeanPars;
+
+	return 0;
+
+}//close SetMNClusteringOptionsFromConfigFile()
 
 int SetMNClusteringOptions(MNClusteringOptions& options)
 {
@@ -348,6 +402,6 @@ int SetMNClusteringOptions(MNClusteringOptions& options)
 
 	return 0;
 
-}//close SetMGClusteringOptions()
+}//close SetMNClusteringOptions()
 
 

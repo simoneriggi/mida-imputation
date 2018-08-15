@@ -54,8 +54,8 @@ struct MNClusteringOptions
 	
 	enum ParInitMethod {
 		eKMEANS= 1,
-		eRANDOM= 2,
-		eUSER= 3
+		eUSER= 2,
+		eRANDOM= 3
 	};
 	enum PreImputationMethod {
 		eMEAN= 1,
@@ -262,7 +262,9 @@ class MNMixtureClustering : public TObject {
 		std::vector<TMatrixD> fSigmaEigen_safe;//covariance eigenvalues for each mixture of size (fNDim x fNDim)
 
 		//- Fit variables
-		double fLogLikelihood;
+		double fLogLikelihood;//final LogLikelihood
+		std::vector<double> fIterLogLikelihood;
+		
 
 	ClassDef(MNMixtureClustering,1)
 

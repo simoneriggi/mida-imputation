@@ -330,7 +330,7 @@ int MNMixtureClustering::RunEMClustering()
 	Print();
 	*/
 
-
+	//## Start EM iteration loop
 	cout<<"INFO: Starting EM iteration loop (#"<<fOptions.nIterations<<" max niters) ..."<<endl;
 	fLogLikelihood= 0.;
 
@@ -354,6 +354,7 @@ int MNMixtureClustering::RunEMClustering()
 		}
 
 		fLogLikelihood= LL;
+		fIterLogLikelihood.push_back(fLogLikelihood);
 		//fIterNo= iter;
 		//fFitIterInfo->Fill();
 		//fIterLogLikelihood[iter]= fLogLikelihood;
