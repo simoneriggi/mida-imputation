@@ -23,10 +23,12 @@ Install the project mandatory dependencies:
 * ROOT [https://root.cern.ch/]
 * R [https://www.r-project.org/], install also these additional packages: RInside, Rcpp, Matrix, Amelia, flexclust
 * log4cxx [https://logging.apache.org/log4cxx/]
+* boost [http://www.boost.org/]
 
 Make sure you have set the following environment variables to the external library installation dirs 
 * ROOTSYS: set to ROOT installation path
 * LOG4CXX_DIR: set to LOG4CXX library installation path
+* BOOST_ROOT: set to BOOST library installation path
 
 NB: Modify Makefile CPPFLAGS and LDFLAGS in case the dependency tools cannot be found.
 
