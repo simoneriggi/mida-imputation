@@ -38,19 +38,28 @@ int ConfigParser::fNComponents;
 int ConfigParser::fNIterations;
 bool ConfigParser::fUseStoppingCriteria;
 double ConfigParser::fEpsilon;
+
+
+//## STARTING VALUES OPTIONS
 int ConfigParser::fParInitMethod;
 bool ConfigParser::fRandomizeStartPars;
 bool ConfigParser::fRandomizeStartCovariancePars;
 bool ConfigParser::fRandomizeStartMeanPars;
+std::vector<TMatrixD> ConfigParser::fMeanStartPars;
+std::vector<TMatrixD> ConfigParser::fCovarianceStartPars;
+std::vector<double> ConfigParser::fFractionStartPars;
+
+//## CONSTRAINT OPTIONS
 bool ConfigParser::fFixMeanPars;
 bool ConfigParser::fFixCovariancePars;
 bool ConfigParser::fFixFractionPars;
 bool ConfigParser::fForceDiagonalCovariance;
-
-//## STARTING VALUES
-std::vector<TMatrixD> ConfigParser::fMeanStartPars;
-std::vector<TMatrixD> ConfigParser::fCovarianceStartPars;
-std::vector<double> ConfigParser::fFractionStartPars;
+bool ConfigParser::fUseConstraints;
+double ConfigParser::fConstraintAlphaScale;
+double ConfigParser::fConstraintAlphaTolerance;
+bool ConfigParser::fUseCovarianceEigenBoundConstraint;
+std::vector<TMatrixD> ConfigParser::fCovarianceEigenMinBound;
+std::vector<TMatrixD> ConfigParser::fCovarianceEigenMaxBound;
 
 /*
 bool ConfigParser::fUseKMeansStart;
@@ -75,17 +84,13 @@ bool ConfigParser::fUseMissingDataEM;
 bool ConfigParser::fFixDeltaPar;
 bool ConfigParser::fFixNuPar;
 
-bool ConfigParser::fUseConstraint;
 bool ConfigParser::fUseRandomRegenerationAfterStuck;
-double ConfigParser::fConstraintAlphaScale;
-double ConfigParser::fConstraintAlphaTolerance;
 bool ConfigParser::fUseMeanConstraint;
 bool ConfigParser::fUseMeanBoundConstraint;
 bool ConfigParser::fUseMeanDiffConstraint;
 bool ConfigParser::fUseCovarianceConstraint;
 bool ConfigParser::fUseCovarianceBoundConstraint;
 bool ConfigParser::fUseCovarianceEigenConstraint;
-bool ConfigParser::fUseCovarianceEigenBoundConstraint;
 bool ConfigParser::fUseDeltaBoundConstraint;
 bool ConfigParser::fUseNuBoundConstraint;
 
@@ -126,8 +131,6 @@ bool ConfigParser::fUseSigmaOffset;
 std::vector<TMatrixD> ConfigParser::fSigmaOffsetPar;
 
 
-std::vector<TMatrixD> ConfigParser::fCovarianceEigenMinBound;
-std::vector<TMatrixD> ConfigParser::fCovarianceEigenMaxBound;
 
 std::vector<int> ConfigParser::fClusterAGroups;
 int ConfigParser::fNClassificationGroups;
@@ -167,26 +170,36 @@ ConfigParser::ConfigParser()
 	//fNSimEvents= 1000;
 	//fSaveFullInfo= true;
 
-	//### ALGORITHM INFO ###
+	//### MAIN OPTIONS ###
 	fNDim= 2;
 	fNComponents= 3;
 	fNIterations= 10;
 	fUseStoppingCriteria= false;
 	fEpsilon= 1.e-6;
+	
+
+	//### START VALUES OPTIONS
 	fParInitMethod= 1;
 	fRandomizeStartPars= false;
 	fRandomizeStartCovariancePars= false;
 	fRandomizeStartMeanPars= false;
-	fFixMeanPars= false;
-	fFixCovariancePars= false;
-	fFixFractionPars= false;
-	fForceDiagonalCovariance= false;
-
-	//### START VALUES
 	fMeanStartPars.clear();
 	fCovarianceStartPars.clear();
 	fFractionStartPars.clear();
 	
+	//### CONSTRAINT OPTIONS
+	fFixMeanPars= false;
+	fFixCovariancePars= false;
+	fFixFractionPars= false;
+	fForceDiagonalCovariance= false;
+	fUseConstraints= true;
+	fConstraintAlphaScale= 2;
+	fConstraintAlphaTolerance= 1.e-4;
+	fUseCovarianceEigenBoundConstraint= true;
+	fCovarianceEigenMinBound.clear();
+	fCovarianceEigenMaxBound.clear();
+	
+
 	/*
 	fFixDeltaPar= false;
 	fFixNuPar= false;
@@ -214,17 +227,16 @@ ConfigParser::ConfigParser()
 	fUseMissingDataEM= false;
 	
 	
-	fUseConstraint= true;
+	
 	fUseRandomRegenerationAfterStuck= false;
-	fConstraintAlphaScale= 2;
-	fConstraintAlphaTolerance= 1.e-4;
+	
 	fUseMeanConstraint= false;
 	fUseMeanBoundConstraint= false;
 	fUseMeanDiffConstraint= true;
 	fUseCovarianceConstraint= true;
 	fUseCovarianceBoundConstraint= true;
 	fUseCovarianceEigenConstraint= true;
-	fUseCovarianceEigenBoundConstraint= true;
+	
 	fUseDeltaBoundConstraint= true;
 	fUseNuBoundConstraint= true;
 			
@@ -281,11 +293,7 @@ ConfigParser::ConfigParser()
 	fNuModelPar.clear();
 	fNuModelPar.resize(0);
 
-	fCovarianceEigenMinBound.clear();
-	fCovarianceEigenMinBound.resize(0);
-	fCovarianceEigenMaxBound.clear();
-	fCovarianceEigenMaxBound.resize(0);
-
+	
 	fClusterAGroups.clear();
 	fClusterAGroups.resize(0);
 
@@ -479,14 +487,16 @@ int ConfigParser::ReadConfig(std::string filename)
 				
 
 				else if(descriptor.compare("meanStartPars")==0){
-					TMatrixD meanPar(fNDim,1);
+					//TMatrixD meanPar(fNDim,1);
+					TMatrixD meanPar(1,fNDim);
 					meanPar.Zero();
 			
 					line >> descriptor;	
 					for(int j=0;j<fNDim;j++){
 						double thisEntry;
 		    		line >> thisEntry;	
-						meanPar(j,0)= thisEntry;	
+						//meanPar(j,0)= thisEntry;
+						meanPar(0,j)= thisEntry;
 					}
 					fMeanStartPars.push_back(meanPar);	
 				}
@@ -509,6 +519,54 @@ int ConfigParser::ReadConfig(std::string filename)
 					line >> descriptor >> thisEntry;
 					fFractionStartPars.push_back(thisEntry);
 				}
+
+				//====  CONSTRAINTS OPTIONS ====
+				else if(descriptor.compare("useConstraints")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue >> fConstraintAlphaScale >> fConstraintAlphaTolerance;			
+					if(thisFlagValue.compare("T")==0) fUseConstraints= true;
+					else if(thisFlagValue.compare("F")==0) fUseConstraints= false;
+					else{
+						cerr<<"ERROR: Invalid setting for useConstraint, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
+				else if(descriptor.compare("useCovarianceEigenBoundConstraint")==0){
+					std::string thisFlagValue;
+		    	line >> descriptor >> thisFlagValue;			
+					if(thisFlagValue.compare("T")==0) fUseCovarianceEigenBoundConstraint= true;
+					else if(thisFlagValue.compare("F")==0) fUseCovarianceEigenBoundConstraint= false;
+					else{
+						cerr<<"ERROR: Invalid setting for useCovarianceEigenBoundConstraint, use T or F!"<<endl;
+    				return -1;
+					}
+		  	}//close else if
+
+				else if(descriptor.compare("covarianceEigenMinBound")==0){
+					TMatrixD bound(1,fNDim);
+					bound.Zero();
+			
+					line >> descriptor;	
+					for(int j=0;j<fNDim;j++){
+						double thisEntry;
+		    		line >> thisEntry;	
+						bound(0,j)= thisEntry;	
+					}
+					fCovarianceEigenMinBound.push_back(bound);	
+				}//close else if
+				else if(descriptor.compare("covarianceEigenMaxBound")==0){
+					TMatrixD bound(1,fNDim);
+					bound.Zero();
+			
+					line >> descriptor;	
+					for(int j=0;j<fNDim;j++){
+						double thisEntry;
+		    		line >> thisEntry;	
+						bound(0,j)= thisEntry;	
+					}
+					fCovarianceEigenMaxBound.push_back(bound);			
+				}//close else if
+
 
 				/*
 				else if(descriptor.compare("nSimEvents")==0){
@@ -680,17 +738,6 @@ int ConfigParser::ReadConfig(std::string filename)
 				
 				
 
-				else if(descriptor.compare("useConstraint")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue >> fConstraintAlphaScale >> fConstraintAlphaTolerance;			
-					if(thisFlagValue.compare("T")==0) fUseConstraint= true;
-					else if(thisFlagValue.compare("F")==0) fUseConstraint= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for useConstraint, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
 				else if(descriptor.compare("useRandomRegenerationAfterStuck")==0){
 					std::string thisFlagValue;
 		    	line >> descriptor >> thisFlagValue;			
@@ -798,17 +845,7 @@ int ConfigParser::ReadConfig(std::string filename)
 						exit(1);
 					}
 		  	}//close else if
-				else if(descriptor.compare("useCovarianceEigenBoundConstraint")==0){
-					std::string thisFlagValue;
-		    	line >> descriptor >> thisFlagValue;			
-					if(thisFlagValue.compare("T")==0) fUseCovarianceEigenBoundConstraint= true;
-					else if(thisFlagValue.compare("F")==0) fUseCovarianceEigenBoundConstraint= false;
-					else{
-						string errMsg = "ConfigParser::ReadConfig(): ERROR: Invalid setting for useCovarianceEigenBoundConstraint, use T or F!";
-    				throw std::runtime_error(errMsg);
-						exit(1);
-					}
-		  	}//close else if
+				
 
 
 		

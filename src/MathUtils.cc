@@ -76,11 +76,14 @@ MathUtils::~MathUtils(){
 double MathUtils::MGDensityFcn(TMatrixD& y,TMatrixD& mu,TMatrixD& SigmaInv,double SigmaDet)
 {
 	int dim= SigmaInv.GetNrows();
-	TMatrixD diff(1,dim);
+	//TMatrixD diff(1,dim);
+	//diff= TMatrixD(TMatrixD::kTransposed, y-mu);
+	TMatrixD diff(dim,1);
 	diff= TMatrixD(TMatrixD::kTransposed, y-mu);
 
 	TMatrixD arg(1,1);
-	arg= diff*SigmaInv*(y-mu);
+	//arg= diff*SigmaInv*(y-mu);
+	arg= (y-mu)*SigmaInv*diff;	
 	double value= 1./(pow(2*TMath::Pi(),dim/2.)*sqrt(SigmaDet))*exp(-0.5*arg(0,0));
 
 	return value;

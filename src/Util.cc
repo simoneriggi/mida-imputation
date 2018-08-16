@@ -113,25 +113,191 @@ int Util::ClearRData()
 }//close ClearRData()
 
 
-int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
+int Util::MakeSymmetricMatrix(TMatrixD& C)
 {
-	//Check data matrix
-	if(!covMatrix){
-		cerr<<"ERROR: Null ptr to matrix given!"<<endl;	
+	//Check if already symmetric
+	if(C.IsSymmetric()){
+		cout<<"INFO: Matrix is already symmetric, nothing to be done..."<<endl; 
+		return 0;
+	}
+
+	//Force matrix symmetric
+	TMatrixD C_t(TMatrixD::kTransposed,C);
+	TMatrixD C_sym = 0.5*(C + C_t);
+	C= C_sym;
+
+	return 0;
+
+}//close MakeSymmetricMatrix()
+
+
+int Util::ComputeSymMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,const TMatrixD& C)
+{
+	long int nCols= C.GetNcols();
+	long int nRows= C.GetNrows();
+
+	//Resize eigen matrix
+	eigenVals.ResizeTo(1,nCols);
+	eigenVects.ResizeTo(nRows,nCols);
+
+	//Check for square matrix
+	if(nCols!=nRows){
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
 		return -1;
 	}
-	long int nCols= covMatrix->GetNcols();
-	long int nRows= covMatrix->GetNrows();
+	
+	//Check symmetric
+	if(!C.IsSymmetric()){
+		cerr<<"ERROR: Input matrix is not symmetric!"<<endl;
+		return -1;
+	}
+
+	//Compute eigenvalues & eigenvect
+	TMatrixDEigen matrixDecomposition(C);
+	TVectorD eigenVals_re= matrixDecomposition.GetEigenValuesRe();
+	eigenVects= matrixDecomposition.GetEigenVectors();
+	for(int i=0;i<eigenVals_re.GetNrows();i++) eigenVals(0,i)= eigenVals_re(i);
+
+	return 0;
+
+}//close ComputeMatrixEigenvalues()
+
+int Util::ComputeMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,TMatrixD& C,bool forceSymmetric)
+{
+	//## NB: If matrix is not simmetric then the eigenvalue matrix D is block
+	//       diagonal with the real eigenvalues in 1-by-1 blocks and any complex
+	//       eigenvalues, a + i*b, in 2-by-2 blocks, [a, b; -b, a]
+	//       If matrix is simmetric the eigenvalue matrix is diagonal with real eigenvalue on the diagonal
+
+	long int nCols= C.GetNcols();
+	long int nRows= C.GetNrows();
+
+	//Resize eigen matrix
+	eigenVals.ResizeTo(nRows,nCols);
+	eigenVects.ResizeTo(nRows,nCols);
+
+	//Check for square matrix
+	if(nCols!=nRows){
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		return -1;
+	}
+	
+	//Make symmetric
+	if(forceSymmetric && MakeSymmetricMatrix(C)){
+		cerr<<"ERROR: Failed to force simmetric matrix!"<<endl;
+		return -1;
+	}
+
+	//Compute eigenvalues & eigenvect
+	TMatrixDEigen matrixDecomposition(C);
+	eigenVals= matrixDecomposition.GetEigenValues();
+	eigenVects= matrixDecomposition.GetEigenVectors();
+
+	return 0;
+
+}//close ComputeMatrixEigenvalues()
+
+int Util::ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,TMatrixD& C,bool forceSymmetric)
+{
+	long int nCols= C.GetNcols();
+	long int nRows= C.GetNrows();
+	
+	//Resize eigen matrix
+	eigenVals.ResizeTo(nCols,1);
+	eigenVects.ResizeTo(nRows,nCols);
+
+	//Check for square matrix
+	if(nCols!=nRows){
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		return -1;
+	}
+
+	//Import matrix in R
+	std::string matrixRName= "sigma";
+	if(ImportMatrixInR(&C,matrixRName)<0){
+		cerr<<"ERROR: Failed to import matrix in R!"<<endl;
+		return -1;
+	}
+
+	//Force symmetric?
+	if(forceSymmetric){
+		try{
+			fR.parseEvalQ(Form("forceSymmetric(%s);",matrixRName.c_str()));
+		}
+		catch(...){
+			cerr<<"ERROR; Failed to force symmetric matrix in R!"<<endl;
+			return -1;
+		}
+	}//close if
+
+	//Compute eigenvalues & vectors
+	std::stringstream ss;
+	ss<<"eigenRes <- eigen("<<matrixRName<<");";
+	std::string RCmd= ss.str();
+	try{
+		fR.parseEvalQ(RCmd);
+		fR.parseEvalQ(Form("rm(%s);",matrixRName.c_str()));//remove tmp sigma
+	}
+	catch(...){
+		cerr<<"ERROR: Failed to compute eigenvalues & eigenvectors of given matrix!"<<endl;
+		return -1;
+	}
+
+	//Retrieve results
+	try{
+		Rcpp::NumericVector sigmaEigenValues= fR.parseEval("eigenRes$values;");
+		Rcpp::NumericMatrix sigmaEigenVectors= fR.parseEval("eigenRes$vectors;");
+
+		for (int l=0; l<nCols; l++) {
+			eigenVals(0,l)= sigmaEigenValues(l);
+			for (int j=0; j<nCols; j++) {
+				double w= sigmaEigenVectors(l,j);
+				eigenVects(l,j)= w;
+			}
+		}
+		
+		fR.parseEvalQ("rm(eigenRes);");
+
+	}//close try
+	catch(...){
+		cerr<<"ERROR: Failed to retrieve eigenvalues/eigenvector matrix!"<<endl;
+		return -1;
+	}
+
+	return 0;
+	
+}//close ComputeMatrixEigenvalues()
+
+
+void Util::MakeDiagonalMatrix(TMatrixD& C)
+{
+	long int nCols= C.GetNcols();
+	long int nRows= C.GetNrows();
+	
+	for(int j=0;j<nRows;j++){
+		for(int l=0;l<nCols;l++){
+			if(j==l) continue;
+			C(j,l)= 0.;
+		}//end loop dim
+	}//end loop dim
+
+}//close MakeDiagonalMatrix()
+
+
+int Util::MakeSymmPosDefCovarianceMatrix(TMatrixD& covMatrix)
+{
+	long int nCols= covMatrix.GetNcols();
+	long int nRows= covMatrix.GetNrows();
 	
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a simmetric matrix!)"<<endl;
+		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
 		return -1;
 	}
 
 	//Import matrix in R
 	std::string covMatrixRName= "sigma";
-	if(ImportMatrixInR(covMatrix,covMatrixRName)<0){
+	if(ImportMatrixInR(&covMatrix,covMatrixRName)<0){
 		cerr<<"ERROR: Failed to import covariance matrix in R!"<<endl;
 		return -1;
 	}
@@ -146,7 +312,7 @@ int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
 		fR.parseEvalQ(RCmd);
 
 		//Remove tmp sigma
-		Util::fR.parseEvalQ(Form("rm(%s);",covMatrixRName.c_str()));
+		fR.parseEvalQ(Form("rm(%s);",covMatrixRName.c_str()));
 	}
 	catch(...){
 		cerr<<"ERROR: Failed to approximate covariance to nearest symm & pos-def matrix!"<<endl;	
@@ -159,7 +325,7 @@ int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
 		for (int l=0; l<nCols; l++) {
 			for (int j=0; j<nCols; j++) {
 				double w= covMatrix_corr(l,j);
-				(*covMatrix)(l,j)= w;
+				covMatrix(l,j)= w;
 			}
 		}
 	}//close try
@@ -170,7 +336,7 @@ int Util::CorrectCovarianceMatrix(TMatrixD* covMatrix)
 
 	return 0;
 
-}//close CorrectCovarianceMatrix()
+}//close MakeSymmPosDefCovarianceMatrix()
 
 TMatrixD* Util::GetDiagonalMatrix(TMatrixD* dataMatrix)
 {
@@ -280,10 +446,12 @@ TMatrixD* Util::ConvertRVectToROOTMatrix(std::string RVect)
 	try{
 		Rcpp::NumericVector dataVect= Util::fR.parseEval(RVect.c_str());
 		long int N= Util::fR.parseEval(Form("length(%s)",RVect.c_str()));
-		dataMatrix_ROOT= new TMatrixD(N,1);
+		//dataMatrix_ROOT= new TMatrixD(N,1);
+		dataMatrix_ROOT= new TMatrixD(1,N);
 
 		for(long int i=0;i<N;i++){
-			(*dataMatrix_ROOT)(i,0)= dataVect(i);
+			//(*dataMatrix_ROOT)(i,0)= dataVect(i);
+			(*dataMatrix_ROOT)(0,i)= dataVect(i);
 		}
 	}//close try block
 	catch(...){

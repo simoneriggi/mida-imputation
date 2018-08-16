@@ -178,13 +178,15 @@ int MNMixtureClustering::ReadData()
 		fObsDataIndexList.push_back( std::vector<long int>() );
 		fMissingDataIndexList.push_back( std::vector<long int>() );
 
-		TMatrixD dataMatrix(fNDim,1);
+		//TMatrixD dataMatrix(fNDim,1);
+		TMatrixD dataMatrix(1,fNDim);
 		dataMatrix.Zero();
 
 		for(int j=0;j<fNDim;j++){
 			double dataValue= (*fDataMatrix)(i,j);
 			(*fDataMatrix_imp)(i,j)= dataValue;
-			dataMatrix(j,0)= dataValue;
+			//dataMatrix(j,0)= dataValue;
+			dataMatrix(0,j)= dataValue;
 			if(TMath::IsNaN(dataValue)){
 				fMissingDataIndexList[i].push_back(j);	
 			}
@@ -200,14 +202,15 @@ int MNMixtureClustering::ReadData()
 		int nDim_obs= (int)(fObsDataIndexList[i].size());
 		int nDim_miss= (int)(fMissingDataIndexList[i].size());
 
-		TMatrixD obsDataMatrix(nDim_obs,1);
+		//TMatrixD obsDataMatrix(nDim_obs,1);
+		TMatrixD obsDataMatrix(1,nDim_obs);
 		TMatrixD Sigma_mm(nDim_miss,nDim_miss);
 		Sigma_mm.Zero();
 
 		for(int s=0;s<nDim_obs;s++){	
 			int VariableId_obs= fObsDataIndexList[i][s];
-			//obsDataMatrix(s,0)= (*fDataMatrix)[i](VariableId_obs);
-			obsDataMatrix(s,0)= fData[i](VariableId_obs,0);
+			//obsDataMatrix(s,0)= fData[i](VariableId_obs,0);
+			obsDataMatrix(0,s)= fData[i](0,VariableId_obs);
 		}//end loop observed dim
 
 		fData_obs.push_back(obsDataMatrix);
@@ -216,12 +219,8 @@ int MNMixtureClustering::ReadData()
 
 		for(int k=0;k<fOptions.nComponents;k++){
 			fProdSigmaMiss[i].push_back(Sigma_mm);
-			//TMatrixD dataMatrix(fNDim,1);
-			//dataMatrix.Zero();
-			//for(int j=0;j<fNDim;j++) dataMatrix(j,0)= (*fDataMatrix)[i](j);
 			fData_compl[i].push_back(dataMatrix);			
-			//fData_compl[i].push_back(fData[i]);
-		}//end loop components
+		}
 		
 	}//end loop events
 
@@ -367,7 +366,10 @@ int MNMixtureClustering::RunEMClustering()
 		//############################################################
 		//## Constrain Step
 		//############################################################
-		//if(fUseConstraint) EMConstrain();
+		if(fOptions.useConstraints && RunEM_ConstrainStep()<0){
+			cerr<<"ERROR: Failed to run EM constraint step!"<<endl;
+			return -1;
+		}
 
 		//############################################################
 		//## DUMP INFO
@@ -413,38 +415,38 @@ int MNMixtureClustering::RunEMClustering()
 
 	
 	//## Fill missing values in data with missing value estimates
-	//if(fUseMissingDataEM){
-		for(long int i=0;i<fN;i++)
-		{
-			int nDim_obs= (int)(fObsDataIndexList[i].size());
-			int nDim_miss= (int)(fMissingDataIndexList[i].size());
+	for(long int i=0;i<fN;i++)
+	{
+		int nDim_obs= (int)(fObsDataIndexList[i].size());
+		int nDim_miss= (int)(fMissingDataIndexList[i].size());
 				
-			if(nDim_obs<=0){
-				cout<<"--> No observed data...skip event!"<<endl;
-				continue;
-			}
+		if(nDim_obs<=0){
+			cout<<"--> No observed data...skip event!"<<endl;
+			continue;
+		}
 
-			if(nDim_miss<=0) continue;
+		if(nDim_miss<=0) continue;
 	
-			for(int s=0;s<nDim_miss;s++){
-				double missValueRec= 0.;
+		for(int s=0;s<nDim_miss;s++){
+			double missValueRec= 0.;
 
-				for(int k=0;k<fOptions.nComponents;k++){
-					double tau= fTau[i][k];
-					double Xm= fData_compl[i][k](fMissingDataIndexList[i][s],0);
-					//double weightedXm= fP[k]*Xm;
-					double weightedXm= tau*Xm;
-					missValueRec+= weightedXm;
-				}//end loop components
-				fData_completed[i](fMissingDataIndexList[i][s],0)= missValueRec;
+			for(int k=0;k<fOptions.nComponents;k++){
+				double tau= fTau[i][k];
+				//double Xm= fData_compl[i][k](fMissingDataIndexList[i][s],0);
+				double Xm= fData_compl[i][k](0,fMissingDataIndexList[i][s]);
+				//double weightedXm= fP[k]*Xm;//WRONG
+				double weightedXm= tau*Xm;
+				missValueRec+= weightedXm;
+			}//end loop components
+			//fData_completed[i](fMissingDataIndexList[i][s],0)= missValueRec;
+			fData_completed[i](0,fMissingDataIndexList[i][s])= missValueRec;
 				
-			}//end loop miss dim
+		}//end loop miss dim
 	
-			//for(int j=0;j<fNDim;j++) (*fRecDataMatrix)(i,j)= fData_completed[i](j,0);
-			for(int j=0;j<fNDim;j++) (*fDataMatrix_imp)(i,j)= fData_completed[i](j,0);
-
-		}//end loop events
-	//}//close if use missing data EM
+		//for(int j=0;j<fNDim;j++) (*fDataMatrix_imp)(i,j)= fData_completed[i](j,0);
+		for(int j=0;j<fNDim;j++) (*fDataMatrix_imp)(i,j)= fData_completed[i](0,j);
+	
+	}//end loop events
 	
 	return 0;
 
@@ -454,7 +456,6 @@ int MNMixtureClustering::RunEMClustering()
 int MNMixtureClustering::RunEM_Init()
 {	
 	//## Init vars
-	//for(size_t i=0;i<fData.size();i++){
 	for(long int i=0;i<fN;i++){
 		fTau.push_back( std::vector<double>() );
 		
@@ -466,7 +467,8 @@ int MNMixtureClustering::RunEM_Init()
 	
 	//## Init start mixture parameters
 	for(int k=0;k<fOptions.nComponents;k++){
-		TMatrixD startMu(fNDim,1);
+		//TMatrixD startMu(fNDim,1);
+		TMatrixD startMu(1,fNDim);
 		startMu.Zero();
 
 		TMatrixD startSigma(fNDim,fNDim);		
@@ -482,8 +484,11 @@ int MNMixtureClustering::RunEM_Init()
 		fMu_start.push_back(startMu);
 		fSigma_start.push_back(startSigma);
 		fSigmaInv_start.push_back(startSigma);
-		fSigmaEigen_start.push_back(startSigma);	
 		fP_start.push_back(1./fOptions.nComponents);
+
+		//Initialize starting eigen
+		fSigmaEigen_start.push_back(startMu);
+		fSigmaEigenvect_start.push_back(startSigma);
 
 		/*
 		fMu_true.push_back(startMu);
@@ -498,14 +503,15 @@ int MNMixtureClustering::RunEM_Init()
 		fSigmaInv.push_back(startSigma);
 		fSigmaDet.push_back(0.);
 		fSigmaDiff.push_back(startSigma);	
-		fSigmaEigen.push_back(startSigma);
+		fSigmaEigen.push_back(startMu);
+		fSigmaEigenvect.push_back(startSigma);
 		fP.push_back(1./fOptions.nComponents);
 		
 		//Initialize safe par values
 		fMu_safe.push_back(startMu);
 		fSigma_safe.push_back(startSigma);	
 		fP_safe.push_back(1./fOptions.nComponents);
-		fSigmaEigen_safe.push_back(startSigma);
+		fSigmaEigen_safe.push_back(startMu);
 	
 	}//end loop components
 
@@ -561,40 +567,38 @@ int MNMixtureClustering::RunEM_Init()
 	}
 	*/
 	
-	//## Compute sigma eigenvalues
-	for(int k=0;k<fOptions.nComponents;k++) {
-		double SigmaDet= 0.;
-		TMatrixD SigmaInv(fNDim,fNDim);
-		TMatrixD Sigma(fNDim,fNDim);
-		Sigma= fSigma[k];
-
-		SigmaInv = Sigma.Invert(&SigmaDet);
-		fSigmaInv[k]= SigmaInv;
-		fSigmaDet[k]= SigmaDet;	
-  		
-		if (SigmaDet<=0) {
+	//## Compute sigma inverse & eigenvalues
+	for(int k=0;k<fOptions.nComponents;k++) 
+	{	
+		//Compute inverse
+		fSigmaDet[k]= fSigma[k].Determinant();	
+		fSigmaInv[k]= TMatrixD(TMatrixD::kInverted,fSigma[k]);
+		if (fSigmaDet[k]<=0) {
 			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
 			return -1;
 		}	
-		
-		TMatrixDEigen SigmaDecomposition(fSigma[k]);
-		TMatrixD SigmaEigenvalues(fNDim,fNDim);
-		SigmaEigenvalues= SigmaDecomposition.GetEigenValues();
-		fSigmaEigen[k]= SigmaEigenvalues;
+
+		//Compute eigenvalues
+		//NB: Fails if imput matrix not symmetric
+		if(Util::ComputeSymMatrixEigenvalues(fSigmaEigen[k],fSigmaEigenvect[k],fSigma[k])<0){
+			cerr<<"ERROR: Failed to compute covariance matrix eigenvalues for component "<<k+1<<"!"<<endl;
+			return -1;
+		}
 
 		//## Check if sigma eigen fullfil the constraints
-		/*
-		for(int j=0;j<fNDim;j++){
-			double lambda= fSigmaEigen[k](j,j);
-			double lambdaMin= fSigmaEigen_min[k](j,0);
-			double lambdaMax= fSigmaEigen_max[k](j,0);
+		if(fOptions.useConstraints && fOptions.useCovarianceEigenBoundConstraint){
+			for(int j=0;j<fNDim;j++){
+				double lambda= fSigmaEigen[k](0,j);
+				double lambdaMin= fOptions.SigmaEigen_min[k](0,j);
+				double lambdaMax= fOptions.SigmaEigen_max[k](0,j);
 
-			if(lambda<=lambdaMin || lambda>=lambdaMax){
-				cerr<<"ERROR: Eigenvalues for component no. "<<k+1<<" not satisfying the constraints for component "<<k+1<<" (lambda="<<lambda<<" min/max="<<lambdaMin<<"/"<<lambdaMax<<")...exit!"<<endl;
-				return -1;
-			}
-		}
-		*/
+				if(lambda<=lambdaMin || lambda>=lambdaMax){
+					cerr<<"ERROR: Eigenvalues for component no. "<<k+1<<" not satisfying the constraints for component "<<k+1<<" (lambda="<<lambda<<" min/max="<<lambdaMin<<"/"<<lambdaMax<<")...exit!"<<endl;
+					return -1;
+				}
+			}//end loop ndim
+		}//close if
+		
 	}//end loop components
 
 	/*
@@ -701,12 +705,13 @@ int MNMixtureClustering::RunEM_Init()
 		fP_start[k]= fP[k];
 		fSigmaInv_start[k]= fSigmaInv[k];
 		fSigmaEigen_start[k]= fSigmaEigen[k];
+		fSigmaEigenvect_start[k]= fSigmaEigenvect[k];
 
 		cout<<"== Component "<<k+1<<" =="<<endl;
 		cout<<"p= "<<fP[k]<<endl;
 		cout<<"Mu= (";
-		for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(j,0)<<",";
-		cout<<(fMu[k])(fNDim-1,0)<<")"<<endl; 
+		for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(0,j)<<",";
+		cout<<(fMu[k])(0,fNDim-1)<<")"<<endl; 
 
 		cout<<"Sigma= (";
 		for(int j=0;j<fNDim;j++){
@@ -723,7 +728,7 @@ int MNMixtureClustering::RunEM_Init()
 		
 		cout<<"SigmaEigen= (";
 		for(int j=0;j<fNDim;j++){
-			for(int l=0;l<fNDim;l++) cout<<(fSigmaEigen[k])(j,l)<<",";
+			cout<<(fSigmaEigen[k])(0,j)<<",";
 		}	
 		cout<<")"<<endl;
 	}
@@ -735,12 +740,6 @@ int MNMixtureClustering::RunEM_Init()
 		fSigmaEigen_safe[k]= fSigmaEigen[k];	
 		fP_safe[k]= fP[k];
 	}	
-
-	/*
-	for(int iter=0;iter<fNIterations;iter++){
-		fIterLogLikelihood.push_back(0.);	
-	}
-	*/
 
 	return 0;
 
@@ -793,7 +792,8 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 			double tauComponent= 0.;
 
 			//## In case of missing data compute for each event the observed mu, sigma, sigmaInv matrix and p
-			TMatrixD Mu_obs(nDim_obs,1);
+			//TMatrixD Mu_obs(nDim_obs,1);
+			TMatrixD Mu_obs(1,nDim_obs);
 			Mu_obs.Zero();
 			TMatrixD Sigma_obs(nDim_obs,nDim_obs);
 			Sigma_obs.Zero();
@@ -803,15 +803,18 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 	
 			if(nDim_miss>0){
 				for(int s=0;s<nDim_obs;s++){
-					Mu_obs(s,0)= fMu[k](fObsDataIndexList[i][s],0); 	
+					//Mu_obs(s,0)= fMu[k](fObsDataIndexList[i][s],0); 	
+					Mu_obs(0,s)= fMu[k](0,fObsDataIndexList[i][s]); 	
 					
 					for(int t=0;t<nDim_obs;t++){
 						Sigma_obs(s,t)= fSigma[k](fObsDataIndexList[i][s],fObsDataIndexList[i][t]);
 					}//end loop obs dim
 				}//end loop obs dim
 
-				SigmaInv_obs= Sigma_obs;
-				SigmaInv_obs= SigmaInv_obs.Invert(&SigmaDet_obs);
+				SigmaInv_obs= TMatrixD(TMatrixD::kInverted, Sigma_obs);
+				SigmaDet_obs= Sigma_obs.Determinant();
+				//SigmaInv_obs= Sigma_obs;
+				//SigmaInv_obs= SigmaInv_obs.Invert(&SigmaDet_obs);
 				if (SigmaDet_obs<=0) {
 					cerr<<"WARN: Observed Covariance matrix inversion failed!"<<endl;
 				}
@@ -842,7 +845,8 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 			else{
 				cerr<<"ERROR: Negative or null tau sum for event no. "<<i<<" (tauSum="<<tauSum<<" data(";
 				for(int j=0;j<fNDim;j++){
-					cerr<<fData[i](j,0)<<",";	
+					//cerr<<fData[i](j,0)<<",";	
+					cerr<<fData[i](0,j)<<",";
 				}
 				cerr<<")...exit!"<<endl;
 				return -1;
@@ -858,21 +862,27 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 
 int MNMixtureClustering::RunEM_MStep()
 {
-	//## Compute the parameter update
-	for(int k=0;k<fOptions.nComponents;k++){
-	
+	//## Compute the EM parameter update
+	for(int k=0;k<fOptions.nComponents;k++)
+	{	
 		double tauSum= 0.;
-		TMatrixD muSum(fNDim,1);
+		//TMatrixD muSum(fNDim,1);
+		TMatrixD muSum(1,fNDim);
 		muSum.Zero();
 		TMatrixD sigmaSum(fNDim,fNDim);
 		sigmaSum.Zero();
 
+		TMatrixD diff(1,fNDim);
+		diff.Zero();
+		TMatrixD diff_t(fNDim,1);
+		diff_t.Zero();
+		
+		/*
 		TMatrixD diff(fNDim,1);
 		diff.Zero();
 		TMatrixD diff_t(1,fNDim);
 		diff_t.Zero();
-		TMatrixD delta_t(1,fNDim);
-		delta_t.Zero();
+		*/
 
 		//## Loop over events	
 		for(long int i=0;i<fN;i++){
@@ -886,9 +896,11 @@ int MNMixtureClustering::RunEM_MStep()
 
 			//## Use missing data EM?
 			if(nDim_miss>0){
+				TMatrixD Data_obs(nDim_obs,1);
 				TMatrixD Data_miss(nDim_miss,1);
 				TMatrixD Mu_miss(nDim_miss,1);
 				TMatrixD Mu_obs(nDim_obs,1);
+				
 				TMatrixD Sigma_mm(nDim_miss,nDim_miss);
 				TMatrixD Sigma_mo(nDim_miss,nDim_obs);
 				TMatrixD Sigma_mo_t(nDim_obs,nDim_miss);
@@ -899,7 +911,10 @@ int MNMixtureClustering::RunEM_MStep()
 				double SigmaDet_oo= 0.;
 
 				for(int s=0;s<nDim_obs;s++){
-					Mu_obs(s,0)= fMu[k](fObsDataIndexList[i][s],0); 
+					Data_obs(s,0)= fData_obs[i](0,s);
+
+					//Mu_obs(s,0)= fMu[k](fObsDataIndexList[i][s],0); 
+					Mu_obs(s,0)= fMu[k](0,fObsDataIndexList[i][s]); 
 
 					for(int t=0;t<nDim_obs;t++){
 						Sigma_oo(s,t)= fSigma[k](fObsDataIndexList[i][s],fObsDataIndexList[i][t]);
@@ -911,7 +926,8 @@ int MNMixtureClustering::RunEM_MStep()
 				}//end loop obs dim
 
 				for(int s=0;s<nDim_miss;s++){
-					Mu_miss(s,0)= fMu[k](fMissingDataIndexList[i][s],0); 
+					//Mu_miss(s,0)= fMu[k](fMissingDataIndexList[i][s],0); 
+					Mu_miss(s,0)= fMu[k](0,fMissingDataIndexList[i][s]); 
 
 					for(int t=0;t<nDim_miss;t++){
 						Sigma_mm(s,t)= fSigma[k](fMissingDataIndexList[i][s],fMissingDataIndexList[i][t]);
@@ -919,19 +935,24 @@ int MNMixtureClustering::RunEM_MStep()
 				}//end loop missing dim
 
 				Sigma_mo_t= TMatrixD(TMatrixD::kTransposed, Sigma_mo);
-
-				SigmaInv_oo= Sigma_oo;	
-				SigmaInv_oo= SigmaInv_oo.Invert(&SigmaDet_oo);
+				
+				SigmaInv_oo= TMatrixD(TMatrixD::kInverted, Sigma_oo);
+				SigmaDet_oo= Sigma_oo.Determinant();
 				if(SigmaDet_oo<=0){
 					cerr<<"WARN: Inversion of observed covariance failed!"<<endl;
 				}	
 
 				SigmaMissProd= Sigma_mm-Sigma_mo*SigmaInv_oo*Sigma_mo_t;
 				fProdSigmaMiss[i][k]= fTau[i][k]*SigmaMissProd;
-				Data_miss= Mu_miss + Sigma_mo*SigmaInv_oo*(fData_obs[i]-Mu_obs);
-					
+
+				//cout<<"INFO: Computing Data_miss (Data_obs="<<fData_obs[i].GetNrows()<<" x "<<fData_obs[i].GetNcols()<<", Mu_obs="<<Mu_obs.GetNrows()<<" x "<<Mu_obs.GetNcols()<<", SigmaInv_oo="<<SigmaInv_oo.GetNrows()<<" x "<<SigmaInv_oo.GetNcols()<<", Sigma_mo="<<Sigma_mo.GetNrows()<<" x "<<Sigma_mo.GetNcols()<<", Mu_miss="<<Mu_miss.GetNrows()<<" x "<<Mu_miss.GetNcols()<<")..."<<endl;
+				//Data_miss= Mu_miss + Sigma_mo*SigmaInv_oo*(fData_obs[i]-Mu_obs);
+				Data_miss= Mu_miss + Sigma_mo*SigmaInv_oo*(Data_obs-Mu_obs);
+				//cout<<"Data_miss size= "<<Data_miss.GetNrows()<<" x "<<Data_miss.GetNcols()<<endl;
+
 				for(int s=0;s<nDim_miss;s++){
-					fData_compl[i][k](fMissingDataIndexList[i][s],0)= Data_miss(s,0);
+					//fData_compl[i][k](fMissingDataIndexList[i][s],0)= Data_miss(s,0);
+					fData_compl[i][k](0,fMissingDataIndexList[i][s])= Data_miss(s,0);
 				}//end loop missing dim
 
 				tauSum+= fTau[i][k];
@@ -962,71 +983,121 @@ int MNMixtureClustering::RunEM_MStep()
 		
 		//## Update sigma 	
 		if(!fOptions.fixCovariancePars){
-
-			//if(fUseMissingDataEM){
-
-				for(int i=0;i<fN;i++){
-					diff= (fData_compl[i][k]-fMu[k]);			
-					diff_t= TMatrixD(TMatrixD::kTransposed, diff);
-					sigmaSum+= fTau[i][k]*diff*diff_t;
-				}//end loop events
+			cout<<"INFO: Updating covariance pars..."<<endl;
+			for(int i=0;i<fN;i++){
+				diff= (fData_compl[i][k]-fMu[k]);			
+				diff_t= TMatrixD(TMatrixD::kTransposed, diff);
+				//sigmaSum+= fTau[i][k]*diff*diff_t;
+				sigmaSum+= fTau[i][k]*diff_t*diff;
+			}//end loop events
 			
-				fSigma[k]= sigmaSum*tauSumInv;
+			fSigma[k]= sigmaSum*tauSumInv;
 				
-				//## Add covariance of missing data to the missing part of sigma
-				for(int i=0;i<fN;i++){
-					int nDim_miss= (int)(fMissingDataIndexList[i].size());
-					for(int s=0;s<nDim_miss;s++){
-						for(int t=0;t<nDim_miss;t++){
-							fSigma[k](fMissingDataIndexList[i][s],fMissingDataIndexList[i][t])+= fProdSigmaMiss[i][k](s,t)/tauSum;
-						}//end loop missing dim
-					}//end loop missing dim		
-				}//end loop events
-
-			//}//close if fUseMissingDataEM
-			/*
-			else{
-
-				for(int i=0;i<fN;i++){
-					diff= (fData[i]-fMu[k]);			
-					diff_t= TMatrixD(TMatrixD::kTransposed, diff);
-					sigmaSum+= fTau[i][k]*diff*diff_t;
-				}//end loop events
-			
-				fSigma[k]= sigmaSum*tauSumInv;
-				
-				//## Apply correction term for truncated EM
-				if(fUseTruncatedEM) fSigma[k]= fSigma[k] + fSigmaTruncGaussianCorrection[k];
-
-			}//close else standard EM
-			*/
+			//## Add covariance of missing data to the missing part of sigma	
+			cout<<"INFO: Add covariance of missing data to the missing part of sigma	..."<<endl;
+			for(long int i=0;i<fN;i++){
+				int nDim_miss= (int)(fMissingDataIndexList[i].size());
+				for(int s=0;s<nDim_miss;s++){
+					for(int t=0;t<nDim_miss;t++){
+						fSigma[k](fMissingDataIndexList[i][s],fMissingDataIndexList[i][t])+= fProdSigmaMiss[i][k](s,t)/tauSum;
+					}//end loop missing dim
+				}//end loop missing dim		
+			}//end loop events
 	
 		}//close if !fFixCovariancePar
-
-		//## Force diagonal covariance?
-		if(fOptions.forceDiagonalCovariance){
-			for(int j=0;j<fNDim;j++){
-				for(int l=0;l<fNDim;l++){
-					if(j==l) continue;
-					fSigma[k](l,j)= 0.;
-				}//end loop dim
-			}//end loop dim
-		}//close if forceDiagonalCovariance
-
-		//## Check covariance matrix integrity
-		if(!fOptions.fixCovariancePars){
-			CheckCovariance(k);
-		}
-
 	}//end loop components
+
+	//## Check covariance matrix integrity
+	if(!fOptions.fixCovariancePars && CheckCovariance()<0){
+		cerr<<"ERROR: Failed to perform checks in covariance matrix!"<<endl;
+		return -1;
+	}
 
 	return 0;
 
 }//close RunEM_MStep()
 
-/*
-void MGMixtureFitter::EMConstrain(){
 
+int MNMixtureClustering::RunEM_ConstrainStep()
+{
+	//==================================================
+	//==      SIGMA EIGENVALUES BOUND CONSTRAINT
+	//==================================================
+	//## Check covariance eigenvalues constraints
+	//## Eigenvalues must be in desired bounds
+	if(fOptions.useCovarianceEigenBoundConstraint) {
+		for(int k=0;k<fOptions.nComponents;k++)
+		{
+			bool isSigmaEigenBoundConstraintViolated= false;
+			double alphaLambda_minmax[fNDim];
+	
+			for(int j=0;j<fNDim;j++){
+				alphaLambda_minmax[j]= 1;
+
+				double Lambda= fSigmaEigen[k](0,j);
+				double Lambda_safe= fSigmaEigen_safe[k](0,j);
+				double Lambda_min= fOptions.SigmaEigen_min[k](0,j);
+				double Lambda_max= fOptions.SigmaEigen_max[k](0,j);
+				double alphaLambda_minBound= (Lambda_min-Lambda_safe)/(Lambda-Lambda_safe);
+				double alphaLambda_maxBound= (Lambda_max-Lambda_safe)/(Lambda-Lambda_safe);
+			
+				if(Lambda<Lambda_min){//min constraint violated
+					alphaLambda_minmax[j]= alphaLambda_minBound;
+					isSigmaEigenBoundConstraintViolated= true;
+					cout<<"DEBUG: Covariance min eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMin="<<Lambda_min<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_minBound<<endl;	
+				}
+				if(Lambda>Lambda_max){//max constraint violated
+					alphaLambda_minmax[j]= alphaLambda_maxBound;
+					isSigmaEigenBoundConstraintViolated= true;
+					cout<<"DEBUG: Covariance max eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMax="<<Lambda_max<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_maxBound<<endl;		
+				}
+			}//end loop dim
+
+			//## Update covariance eigen values		
+			if(isSigmaEigenBoundConstraintViolated){
+			
+				//## Find mix alpha value and define optimal alpha
+				double alphaEigenMin= 1;
+				cout<<"DEBUG: alphaSigmaEigenList (";
+				for(int j=0;j<fNDim;j++){
+					cout<<alphaLambda_minmax[j]<<",";
+					if(alphaLambda_minmax[j]<alphaEigenMin) alphaEigenMin= alphaLambda_minmax[j];
+				}				
+				cout<<")"<<endl;
+			
+				double alphaEigenOpt= alphaEigenMin/fOptions.constraintAlphaScale;
+
+				cout<<"DEBUG: alphaEigenMin="<<alphaEigenMin<<", alphaEigenOpt="<<alphaEigenOpt<<endl;
+
+				//## Update sigma eigen values
+				if(alphaEigenOpt<fOptions.constraintAlphaTolerance) {
+					cout<<"WARN: Covariance eigen for component "<<k+1<<" is stuck in constraint ("<<alphaEigenOpt<<"<"<<fOptions.constraintAlphaTolerance<<")!"<<endl;		
+					fSigmaEigen[k]= fSigmaEigen_start[k];
+				}
+				else{
+					for(int j=0;j<fNDim;j++){
+						double Lambda= fSigmaEigen[k](0,j);
+						double Lambda_safe= fSigmaEigen_safe[k](0,j);
+						fSigmaEigen[k](0,j)= (1.-alphaEigenOpt)*Lambda_safe + alphaEigenOpt*Lambda;
+					}//end loop dim
+				}
+				
+				//## Re-Calculate covariance starting from the updated eigenvalues
+				fSigma[k]= fSigmaEigenvect[k]*fSigmaEigen[k]*TMatrixD(TMatrixD::kInverted,fSigmaEigenvect[k]);
+
+			}//close if isSigmaEigenBoundConstraintViolated
+		}//end loop components
+
+		//## Check covariance (re-compute inverse, determinant, etc)
+		if(CheckCovariance()<0){
+			cerr<<"ERROR: Failed to check covariance after eigen constraint!"<<endl;
+			return -1;
+		}
+				
+	}//close fUseCovarianceEigenConstraint
+
+
+	/*
 	//###########################
 	//####  MEAN CONSTRAINT #####
 	//###########################
@@ -1404,9 +1475,12 @@ void MGMixtureFitter::EMConstrain(){
 		}	
 		cout<<")"<<endl;
 	}//end loop components
+	*/
 
-}//close MGMixtureFitter::EMConstrain()
-*/
+	return 0;
+
+}//close RunEM_ConstrainStep()
+
 
 
 int MNMixtureClustering::InitParsToUser()
@@ -1435,7 +1509,8 @@ int MNMixtureClustering::InitParsToUser()
 		return -1;
 	}
 	for(size_t k=0;k<(fOptions.Mu_start).size();k++){
-		int meanVectDim= (fOptions.Mu_start)[k].GetNrows();
+		//int meanVectDim= (fOptions.Mu_start)[k].GetNrows();
+		int meanVectDim= (fOptions.Mu_start)[k].GetNcols();
 		if(meanVectDim!=fNDim){
 			cerr<<"ERROR: User mean vector size for component no. "<<k+1<<" is not equal to nDim="<<fNDim<<"!"<<endl;
 			return -1;
@@ -1459,29 +1534,6 @@ int MNMixtureClustering::InitParsToUser()
 		fSigma[k]= (fOptions.Sigma_start)[k];
 	}//end loop components
 
-	//Compute Sigma inv matrix and eigenvalues
-	for(int k=0;k<fOptions.nComponents;k++) {
-		double SigmaDet= 0.;
-		TMatrixD SigmaInv(fNDim,fNDim);
-		TMatrixD Sigma(fNDim,fNDim);
-		Sigma= fSigma[k];
-
-		SigmaInv = Sigma.Invert(&SigmaDet);
-		fSigmaInv[k]= SigmaInv;
-		fSigmaDet[k]= SigmaDet;	
-  		
-		if (SigmaDet<=0) {
-			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
-			return -1;
-		}	
-		
-		TMatrixDEigen SigmaDecomposition(fSigma[k]);
-		TMatrixD SigmaEigenvalues(fNDim,fNDim);
-		SigmaEigenvalues= SigmaDecomposition.GetEigenValues();
-		fSigmaEigen[k]= SigmaEigenvalues;
-
-	}//end loop components
-
 	return 0;
 
 }//close InitParsToUser()
@@ -1501,8 +1553,8 @@ int MNMixtureClustering::InitParsToKMeans()
 	TMatrixD* clusterSizes= kmeans.GetClusterSizes();
 	TMatrixD* clusterCenters= kmeans.GetClusterCenters();
 	std::vector<TMatrixD*> clusterCovMatrixes= kmeans.GetClusterCovMatrixes();
-	cout<<"DEBUG: clusterSizes: "<<clusterSizes->GetNrows()<<" x "<<clusterSizes->GetNcols()<<endl;
-	cout<<"DEBUG: clusterCenters: "<<clusterCenters->GetNrows()<<" x "<<clusterCenters->GetNcols()<<endl;
+	//cout<<"DEBUG: clusterSizes: "<<clusterSizes->GetNrows()<<" x "<<clusterSizes->GetNcols()<<endl;
+	//cout<<"DEBUG: clusterCenters: "<<clusterCenters->GetNrows()<<" x "<<clusterCenters->GetNcols()<<endl;
 	
 
 	//## Assign cluster weights as fraction start
@@ -1527,36 +1579,15 @@ int MNMixtureClustering::InitParsToKMeans()
 	cout<<"INFO: Assign the start mean parameters according to the kmeans cluster centers ..."<<endl;
 	for(int k=0;k<fOptions.nComponents;k++){
 		for(int j=0;j<fNDim;j++){
-			fMu[k](j,0)= (*clusterCenters)(k,j); 
+			//fMu[k](j,0)= (*clusterCenters)(k,j);
+			fMu[k](0,j)= (*clusterCenters)(k,j); 	
 		}//end loop dim
 	}//end loop components
 
-	//Compute Sigma inv matrix and eigenvalues
-	for(int k=0;k<fOptions.nComponents;k++) {
-		double SigmaDet= 0.;
-		TMatrixD SigmaInv(fNDim,fNDim);
-		TMatrixD Sigma(fNDim,fNDim);
-		Sigma= fSigma[k];
-
-		SigmaInv = Sigma.Invert(&SigmaDet);
-		fSigmaInv[k]= SigmaInv;
-		fSigmaDet[k]= SigmaDet;	
-  		
-		if (SigmaDet<=0) {
-			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
-			return -1;
-		}	
-		
-		TMatrixDEigen SigmaDecomposition(fSigma[k]);
-		TMatrixD SigmaEigenvalues(fNDim,fNDim);
-		SigmaEigenvalues= SigmaDecomposition.GetEigenValues();
-		fSigmaEigen[k]= SigmaEigenvalues;
-
-	}//end loop components
-
+	
 	//## Print pars
-	cout<<"DEBUG: Printing par start values after kmeans..."<<endl;
-	PrintPars();
+	//cout<<"DEBUG: Printing par start values after kmeans..."<<endl;
+	//PrintPars();
 
 	return 0;
 
@@ -1591,12 +1622,15 @@ void MNMixtureClustering::RandomizeMeanPars()
 		double parValue[fOptions.nComponents];
 		double meanSigmaGeneration= 3.*sqrt((*fCovarianceData)(j,j));	
 		//double meanSigmaGeneration= 3.*sqrt((*fSigma[k])(j,j));	
-		double minBoundary= (*fMeanData)(j,0)-meanSigmaGeneration;
-		double maxBoundary= (*fMeanData)(j,0)+meanSigmaGeneration;
+		//double minBoundary= (*fMeanData)(j,0)-meanSigmaGeneration;
+		//double maxBoundary= (*fMeanData)(j,0)+meanSigmaGeneration;
+		double minBoundary= (*fMeanData)(0,j)-meanSigmaGeneration;
+		double maxBoundary= (*fMeanData)(0,j)+meanSigmaGeneration;
 
 		for(int k=0;k<fOptions.nComponents;k++){
 			parValue[k]= gRandom->Uniform(minBoundary,maxBoundary);
-			fMu[k](j,0)= parValue[k];
+			//fMu[k](j,0)= parValue[k];
+			fMu[k](0,j)= parValue[k];
 		}//end loop components
 	}//end loop dim
 	
@@ -1635,161 +1669,55 @@ void MNMixtureClustering::RandomizeSigmaPars()
 }//close RandomizeSigmaPars()
 
 
-int MNMixtureClustering::CheckCovariance(int k)
+int MNMixtureClustering::CheckCovariance()
 {
+	//## Loop over components and check covariance matrix:
+	//##   - must be symmetric
+	//##   - must be positive def	
+	//##   - set diagonal (if enabled)
 
-	/*
-	//## Create Sigma matrix in R
-	std::string sigmaCmd= "sigma <- matrix(c(";
-	for (int l=0; l<fNDim; l++) {
-		for (int j=0; j<fNDim; j++) {
-			std::string sigmaText= "";
-			if(l==fNDim-1 && j==fNDim-1) sigmaText= std::string(Form("%f)",fSigma[k](l,j)));
-			else sigmaText= std::string(Form("%f,",fSigma[k](l,j)));
-			sigmaCmd= sigmaCmd + sigmaText;	
-
-			//cout<<fSigma[k](l,j)<<",";
-		}//end loop dim
-	}//end loop dim	
-	//cout<<")"<<endl;
-
-	sigmaCmd= sigmaCmd + std::string(Form(", %d, %d);",fNDim,fNDim));	
-
-	Util::fR.parseEvalQ(sigmaCmd);
-
-			
-	//## Force covariance to be symmetric and pos def
-	//## Approximate to the nearest covariance matrix
-	Util::fR.parseEvalQ("res <- nearPD(sigma, corr=FALSE, do2eigen=FALSE, ensureSymmetry= TRUE);");
-
-	Util::fR.parseEvalQ("sigmaCorr <- as.matrix(res$mat);");
-
-	//## Get corrected matrix and re-assign to Sigma
-	Rcpp::NumericMatrix CovMatrixCorrected= MathUtilities::fR.parseEval("sigmaCorr;");
-	for (int l=0; l<fNDim; l++) {
-		for (int j=0; j<fNDim; j++) {
-			fSigma[k](l,j)= CovMatrixCorrected(l,j);
+	for(int k=0;k<fOptions.nComponents;k++)
+	{
+		//## Force diagonal covariance?
+		if(fOptions.forceDiagonalCovariance){
+			Util::MakeDiagonalMatrix(fSigma[k]);
 		}
-	}
-	*/
-		
-	if(Util::CorrectCovarianceMatrix(&fSigma[k])<0){
-		cerr<<"ERROR: Failed to correct covariance matrix for component no. "<<k+1<<"!"<<endl;
-		return -1;	
-	}
 
-	//## Compute new determinant, eigenvalues & eigenvectors
-	double SigmaDet= fSigma[k].Determinant();	
-
-	/*
-	Util::fR.parseEval("eigenRes <- eigen(sigmaCorr)");
-	
-	Rcpp::NumericVector sigmaEigenValues= MathUtilities::fR.parseEval("eigenRes$values;");
-	Rcpp::NumericMatrix sigmaEigenVectors= MathUtilities::fR.parseEval("eigenRes$vectors;");
-	Rcpp::NumericMatrix sigmaEigenVectorsInv= MathUtilities::fR.parseEval("solve(eigenRes$vectors);");
-
-	TMatrixD SigmaEigenvalues(fNDim,fNDim);	
-	SigmaEigenvalues.Zero();
-	TMatrixD SigmaEigenvectors(fNDim,fNDim);
-	SigmaEigenvectors.Zero();	
-	TMatrixD SigmaEigenvectorsInv(fNDim,fNDim);	
-	SigmaEigenvectorsInv.Zero();
-
-	for (int l=0; l<fNDim; l++) {
-		SigmaEigenvalues(l,l)= sigmaEigenValues[l];
-		for (int j=0; j<fNDim; j++) {
-			SigmaEigenvectors(l,j)= sigmaEigenVectors(l,j);	
-			SigmaEigenvectorsInv(l,j)= sigmaEigenVectorsInv(l,j);				
+		//## Force covariance to be symmetric and pos def
+		//## Approximate to the nearest covariance matrix
+		if(Util::MakeSymmPosDefCovarianceMatrix(fSigma[k])<0){
+			cerr<<"ERROR: Failed to correct covariance matrix for component no. "<<k+1<<"!"<<endl;
+			return -1;	
 		}
-	}
 
-	double SigmaEigenvectorsDet= SigmaEigenvectorsInv.Determinant();
-			
-	if(SigmaEigenvectorsDet<=0) {
-		cerr<<"WARN: Covariance matrix eigenvectors inversion failed for component "<<k+1<<" (det="<<SigmaEigenvectorsDet<<")!"<<endl;
-	}
-			
-	//## Check covariance eigenvalues constraints
-	if(fUseCovarianceEigenBoundConstraint){
+		//## Check if determinant is ok
+		if(fSigmaDet[k]<=1.e-16){
+			cout<<"WARN: Covariance matrix for component "<<k+1<<" is not positive def (det="<<fSigmaDet[k]<<") ... setting covariance to safe matrix!"<<endl;
+			fSigma[k]= fSigma_safe[k];
+		}
+
+
+		//## Update inverse & determinant	
+		fSigmaInv[k]= TMatrixD(TMatrixD::kInverted,fSigma[k]);
+		fSigmaDet[k]= fSigma[k].Determinant();	
 		
-		bool isBadSigmaEigen_minmax= false;
-		bool isSigmaEigenBoundConstraintViolated= false;
-		double alphaLambda_minmax[fNDim];
+		//## Update eigenvalues & eigenvectors	
+		if(Util::ComputeSymMatrixEigenvalues(fSigmaEigen[k],fSigmaEigenvect[k],fSigma[k])<0){
+			cerr<<"ERROR: Failed to compute matrix eigenvalues/eigenvectors!"<<endl;
+			return -1;
+		}
+		TMatrixD sigmaEigenvectInv= TMatrixD(TMatrixD::kInverted,fSigmaEigenvect[k]);
+		double sigmaEigenvectDet= sigmaEigenvectInv.Determinant();
+		if(sigmaEigenvectDet<=0) {
+			cerr<<"WARN: Covariance matrix eigenvectors inversion failed for component "<<k+1<<" (det="<<sigmaEigenvectDet<<")!"<<endl;
+		}
+
+		//## Set the current covariance as "safe"
+		fSigma_safe[k]= fSigma[k];
+		fSigmaEigen_safe[k]= fSigmaEigen[k];
 	
-		for(int j=0;j<fNDim;j++){
-			alphaLambda_minmax[j]= 1;
+	}//end loop components
 
-			double Lambda= SigmaEigenvalues(j,j);
-			double Lambda_safe= fSigmaEigen_safe[k](j,j);
-			double Lambda_min= fSigmaEigen_min[k](j,0);
-			double Lambda_max= fSigmaEigen_max[k](j,0);
-			double alphaLambda_minBound= (Lambda_min-Lambda_safe)/(Lambda-Lambda_safe);
-			double alphaLambda_maxBound= (Lambda_max-Lambda_safe)/(Lambda-Lambda_safe);
-			
-			if(Lambda<Lambda_min){//min constraint violated
-				alphaLambda_minmax[j]= alphaLambda_minBound;
-				isBadSigmaEigen_minmax= true;
-				isSigmaEigenBoundConstraintViolated= true;
-				cout<<"MGMixtureFitter::CheckCovariance(): INFO: Covariance min eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMin="<<Lambda_min<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_minBound<<endl;	
-			}
-			if(Lambda>Lambda_max){//max constraint violated
-				alphaLambda_minmax[j]= alphaLambda_maxBound;
-				isBadSigmaEigen_minmax= true;
-				isSigmaEigenBoundConstraintViolated= true;
-				cout<<"MGMixtureFitter::CheckCovariance(): INFO: Covariance max eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMax="<<Lambda_max<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_maxBound<<endl;		
-			}
-		}//end loop dim
-
-		//## Update covariance eigen values		
-		if(isSigmaEigenBoundConstraintViolated){
-			
-			//## Find mix alpha value and define optimal alpha
-			double alphaEigenMin= 1;
-			cout<<"MGMixtureFitter::CheckCovariance(): INFO: alphaSigmaEigenList (";
-			for(int j=0;j<fNDim;j++){
-				cout<<alphaLambda_minmax[j]<<",";
-				if(alphaLambda_minmax[j]<alphaEigenMin) alphaEigenMin= alphaLambda_minmax[j];
-			}				
-			cout<<")"<<endl;
-			
-			double alphaEigenOpt= alphaEigenMin/fConstraintAlphaScale;
-
-			cout<<"MGMixtureFitter::CheckCovariance(): INFO: alphaEigenMin="<<alphaEigenMin<<" alphaEigenOpt="<<alphaEigenOpt<<endl;
-
-			//## Update sigma eigen values
-			if(alphaEigenOpt<fConstraintAlphaTolerance) {
-				cout<<"MGMixtureFitter::CheckCovariance(): INFO: Covariance eigen for component "<<k+1<<" is stuck in constraint ("<<alphaEigenOpt<<"<"<<fConstraintAlphaTolerance<<")!"<<endl;		
-				fSigmaEigen[k]= fSigmaEigen_start[k];
-			}
-			else{
-				for(int j=0;j<fNDim;j++){
-					double Lambda= SigmaEigenvalues(j,j);
-					double Lambda_safe= fSigmaEigen_safe[k](j,j);
-					fSigmaEigen[k](j,j)= (1.-alphaEigenOpt)*Lambda_safe + alphaEigenOpt*Lambda;
-				}//end loop dim
-			}
-				
-			//## Re-Calculate covariance and sigma starting from the updated eigenvalues
-			for(int k=0;k<fNComponents;k++){
-				fSigma[k]= SigmaEigenvectors*fSigmaEigen[k]*SigmaEigenvectorsInv;
-			}//end loop components
-			
-		}//close if isSigmaEigenBoundConstraintViolated
-		
-	}//close fUseCovarianceEigenConstraint
-	SigmaDet= fSigma[k].Determinant();
-	*/
-
-	if(SigmaDet<=1.e-16){
-		cout<<"WARN: Covariance matrix for component "<<k+1<<" is not positive def (det="<<SigmaDet<<")... setting to safe matrix!"<<endl;
-		fSigma[k]= fSigma_safe[k];		
-		//fSigma[k]= fSigma_start[k];					
-	}
-		
-	//## Set the current constrained set as "safe"
-	fSigma_safe[k]= fSigma[k];
-	fSigmaEigen_safe[k]= fSigmaEigen[k];
-			
 	return 0;
 
 }//close CheckCovariance()
@@ -1802,8 +1730,10 @@ void MNMixtureClustering::PrintPars()
 		cout<<"== Component "<<k+1<<" =="<<endl;
 		cout<<"p= "<<fP[k]<<endl;
 		cout<<"Mu= (";
-		for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(j,0)<<",";
-		cout<<(fMu[k])(fNDim-1,0)<<")"<<endl; 
+		//for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(j,0)<<",";
+		//cout<<(fMu[k])(fNDim-1,0)<<")"<<endl; 
+		for(int j=0;j<fNDim-1;j++) cout<<(fMu[k])(0,j)<<",";
+		cout<<(fMu[k])(0,fNDim-1)<<")"<<endl; 
 				
 		cout<<"Sigma= (";
 		for(int j=0;j<fNDim;j++){
@@ -1828,8 +1758,10 @@ void MNMixtureClustering::PrintPars2()
 		else fractionPrintMsg+= TString(",");
 
 		meanPrintMsg+= Form("Mu%d=(",k+1);
-		for(int j=0;j<fNDim-1;j++) meanPrintMsg+= Form("%1.2f,",(fMu[k])(j,0));
-		meanPrintMsg+= Form("%1.2f) ",(fMu[k])(fNDim-1,0));
+		//for(int j=0;j<fNDim-1;j++) meanPrintMsg+= Form("%1.2f,",(fMu[k])(j,0));
+		//meanPrintMsg+= Form("%1.2f) ",(fMu[k])(fNDim-1,0));
+		for(int j=0;j<fNDim-1;j++) meanPrintMsg+= Form("%1.2f,",(fMu[k])(0,j));
+		meanPrintMsg+= Form("%1.2f) ",(fMu[k])(0,fNDim-1));
 
 		sigmaPrintMsg+= Form("Sigma%d=(",k+1);
 		for(int j=0;j<fNDim;j++){
