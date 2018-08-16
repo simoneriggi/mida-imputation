@@ -8,7 +8,7 @@ A C++ software tool for imputating multivariate missing data with multiple metho
 ## **Credits**
 If you use this software for your research, please acknowledge it in your papers by citing the following references:
 
-* `S. Riggi et al., "Combined spectrum-Xmax fit with a likelihood approach", Nuclear Instruments and Methods in Physics Research A 780 (2015) 81–90`
+* `S. Riggi et al., "Handling missing data for the identification of charged particles in a multilayer detector: A comparison between different imputation methods", Nucl. Instr. and Meth. A 780 (2015) 81–90`
 
 or consider including me (`S. Riggi, INAF - Osservatorio Astrofisico di Catania, Via S. Sofia 78, I-95123, Catania, Italy`)
 as a co-author on your publications.
