@@ -16,6 +16,7 @@
 #include <KMeansClustering.h>
 #include <Util.h>
 #include <MathUtils.h>
+#include <Logger.h>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -136,11 +137,11 @@ void MNMixtureClustering::ClearData()
 int MNMixtureClustering::Init()
 {
 	//## Clear R environment
-	cout<<"INFO: Clearing R environment..."<<endl;
+	INFO_LOG("Clearing R environment...");
 	Util::ClearRData();
 
 	//### Initialize all necessary libraries
-	cout<<"INFO: Loading needed R libraries..."<<endl;
+	INFO_LOG("Loading needed R libraries...");
 	//std::vector<std::string> RLibraries{"mvtnorm","tmvtnorm","fMultivar","Matrix","moments"};
 	std::vector<std::string> RLibraries{"Matrix"};
 	if(Util::LoadRLibraries(RLibraries)<0){
@@ -983,7 +984,7 @@ int MNMixtureClustering::RunEM_MStep()
 		
 		//## Update sigma 	
 		if(!fOptions.fixCovariancePars){
-			cout<<"INFO: Updating covariance pars..."<<endl;
+			//cout<<"DEBUG: Updating covariance pars..."<<endl;
 			for(int i=0;i<fN;i++){
 				diff= (fData_compl[i][k]-fMu[k]);			
 				diff_t= TMatrixD(TMatrixD::kTransposed, diff);
@@ -994,7 +995,7 @@ int MNMixtureClustering::RunEM_MStep()
 			fSigma[k]= sigmaSum*tauSumInv;
 				
 			//## Add covariance of missing data to the missing part of sigma	
-			cout<<"INFO: Add covariance of missing data to the missing part of sigma	..."<<endl;
+			//cout<<"DEBUG: Add covariance of missing data to the missing part of sigma	..."<<endl;
 			for(long int i=0;i<fN;i++){
 				int nDim_miss= (int)(fMissingDataIndexList[i].size());
 				for(int s=0;s<nDim_miss;s++){

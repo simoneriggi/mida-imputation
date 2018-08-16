@@ -4,6 +4,7 @@
 #include <MNMixtureClustering.h>
 #include <Util.h>
 #include <ConfigParser.h>
+#include <Logger.h>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -73,6 +74,7 @@ void Usage(char* exeName){
 	cout<<endl;
 	cout<<"Options:"<<endl;
   cout<<"-h, --help \t Show help message and exit"<<endl;
+	cout<<"-v, --verbosity \t Log level (<=0=OFF, 1=FATAL, 2=ERROR, 3=WARN, 4=INFO, >=5=DEBUG)"<<endl;
 	cout<<"-i, --input=[INPUT FILENAME] \t Input data file (ascii) with missing data to be imputed "<<endl;
 	cout<<"-o, --output=[OUTPUT FILENAME] \t Output data file (ascii) with missing data imputed (default: Output.dat)"<<endl;
 	cout<<"-m, --method=[IMPUTATION_METHOD] \t Imputation method (1=Mean,2=Listwise Deletion,3=Multiple imputation,4=Multivariate Normal clustering,5=Multivariate Skew Normal clustering"<<endl;
@@ -90,9 +92,25 @@ void Usage(char* exeName){
 	cout<<"=============================="<<endl;
 }
 
+std::string GetStringLogLevel(int verbosity)
+{
+	std::string slevel= "";
+	if(verbosity<=0) slevel= "FATAL";
+	else if(verbosity==1) slevel= "FATAL";
+	else if(verbosity==2) slevel= "ERROR";
+	else if(verbosity==3) slevel= "WARN";
+	else if(verbosity==4) slevel= "INFO";
+	else if(verbosity>5) slevel= "DEBUG";
+	else slevel= "OFF";
+
+	return slevel;
+
+}//close GetStringLogLevel()
+
 static const struct option options_tab[] = {
   /* name, has_arg, &flag, val */
   { "help", no_argument, 0, 'h' },
+	{ "verbosity", required_argument, 0, 'v'},
 	{ "input", required_argument, 0, 'i' },
 	{ "output", required_argument, 0, 'o' },
 	{ "method", required_argument, 0, 'm' },
@@ -110,6 +128,7 @@ static const struct option options_tab[] = {
 
 
 //Options
+int verbosity= 4;//INFO level
 int imputationMethod= 1;
 std::string inputFileName= "";
 std::string outputFileName= "Output.dat";
@@ -146,7 +165,7 @@ int main(int argc, char **argv)
 	int c = 0;
   int option_index = 0;
 
-	while((c = getopt_long(argc, argv, "hi:o::m::r::R::k:M::S::p::d::uc::",options_tab, &option_index)) != -1) {
+	while((c = getopt_long(argc, argv, "hi:o::v::m::r::R::k:M::S::p::d::uc::",options_tab, &option_index)) != -1) {
     
     switch (c) {
 			case 0 : 
@@ -157,6 +176,11 @@ int main(int argc, char **argv)
 			{
       	Usage(argv[0]);	
 				exit(0);
+			}
+			case 'v':	
+			{
+				verbosity= atoi(optarg);	
+				break;	
 			}
     	case 'i':	
 			{
@@ -230,6 +254,9 @@ int main(int argc, char **argv)
     }//close switch
 	}//close while
 	
+	//## Set logging level
+	std::string sloglevel= GetStringLogLevel(verbosity);
+	LoggerManager::Instance().CreateConsoleLogger(sloglevel,"logger","System.out");
 	
 	//====================================================
 	//==         RUN IMPUTATION

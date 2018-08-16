@@ -9,6 +9,7 @@
 */
 
 #include <Util.h>
+#include <Logger.h>
 
 #include <TFile.h>
 #include <TTree.h>
@@ -76,7 +77,7 @@ int Util::LoadRLibraries(std::vector<std::string> libraryNames)
 {
 	//Check libraries
 	if(libraryNames.empty()){
-		cerr<<"WARN: Empty library names!"<<endl;
+		WARN_LOG("Empty library names, nothing to be done!");
 		return -1;
 	}
 
@@ -87,7 +88,7 @@ int Util::LoadRLibraries(std::vector<std::string> libraryNames)
 			Util::fR.parseEval(RCmd);	
 		}
 		catch(...){
-			cerr<<"ERROR: Failed to load library "<<libraryNames[i]<<"!"<<endl;
+			ERROR_LOG("Failed to load library "<<libraryNames[i]<<"!");
 			return -1;
 		}		
 	}//end loop libraries
@@ -99,12 +100,12 @@ int Util::LoadRLibraries(std::vector<std::string> libraryNames)
 int Util::ClearRData()
 {
 	//## Clear R environment
-	cout<<"INFO: Clearing R environment..."<<endl;
+	DEBUG_LOG("Clearing R environment...");
 	try{
 		fR.parseEvalQ("rm(list = ls(all = TRUE));");
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to clear R data!"<<endl;
+		ERROR_LOG("Failed to clear R data!");
 		return -1;
 	}
 
@@ -117,7 +118,7 @@ int Util::MakeSymmetricMatrix(TMatrixD& C)
 {
 	//Check if already symmetric
 	if(C.IsSymmetric()){
-		cout<<"INFO: Matrix is already symmetric, nothing to be done..."<<endl; 
+		INFO_LOG("Matrix is already symmetric, nothing to be done...");
 		return 0;
 	}
 
@@ -142,13 +143,13 @@ int Util::ComputeSymMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,c
 
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		ERROR_LOG("Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)");
 		return -1;
 	}
 	
 	//Check symmetric
 	if(!C.IsSymmetric()){
-		cerr<<"ERROR: Input matrix is not symmetric!"<<endl;
+		ERROR_LOG("Input matrix is not symmetric!");
 		return -1;
 	}
 
@@ -178,13 +179,13 @@ int Util::ComputeMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,TMat
 
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		ERROR_LOG("Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)");
 		return -1;
 	}
 	
 	//Make symmetric
 	if(forceSymmetric && MakeSymmetricMatrix(C)){
-		cerr<<"ERROR: Failed to force simmetric matrix!"<<endl;
+		ERROR_LOG("Failed to force simmetric matrix!");
 		return -1;
 	}
 
@@ -208,14 +209,14 @@ int Util::ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,T
 
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		ERROR_LOG("Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)");
 		return -1;
 	}
 
 	//Import matrix in R
 	std::string matrixRName= "sigma";
 	if(ImportMatrixInR(&C,matrixRName)<0){
-		cerr<<"ERROR: Failed to import matrix in R!"<<endl;
+		ERROR_LOG("Failed to import matrix in R!");
 		return -1;
 	}
 
@@ -225,7 +226,7 @@ int Util::ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,T
 			fR.parseEvalQ(Form("forceSymmetric(%s);",matrixRName.c_str()));
 		}
 		catch(...){
-			cerr<<"ERROR; Failed to force symmetric matrix in R!"<<endl;
+			ERROR_LOG("Failed to force symmetric matrix in R!");
 			return -1;
 		}
 	}//close if
@@ -239,7 +240,7 @@ int Util::ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,T
 		fR.parseEvalQ(Form("rm(%s);",matrixRName.c_str()));//remove tmp sigma
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to compute eigenvalues & eigenvectors of given matrix!"<<endl;
+		ERROR_LOG("Failed to compute eigenvalues & eigenvectors of given matrix!");
 		return -1;
 	}
 
@@ -260,7 +261,7 @@ int Util::ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,T
 
 	}//close try
 	catch(...){
-		cerr<<"ERROR: Failed to retrieve eigenvalues/eigenvector matrix!"<<endl;
+		ERROR_LOG("Failed to retrieve eigenvalues/eigenvector matrix!");
 		return -1;
 	}
 
@@ -291,14 +292,14 @@ int Util::MakeSymmPosDefCovarianceMatrix(TMatrixD& covMatrix)
 	
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)"<<endl;
+		ERROR_LOG("Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a square matrix!)");
 		return -1;
 	}
 
 	//Import matrix in R
 	std::string covMatrixRName= "sigma";
 	if(ImportMatrixInR(&covMatrix,covMatrixRName)<0){
-		cerr<<"ERROR: Failed to import covariance matrix in R!"<<endl;
+		ERROR_LOG("Failed to import covariance matrix in R!");
 		return -1;
 	}
 
@@ -315,7 +316,7 @@ int Util::MakeSymmPosDefCovarianceMatrix(TMatrixD& covMatrix)
 		fR.parseEvalQ(Form("rm(%s);",covMatrixRName.c_str()));
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to approximate covariance to nearest symm & pos-def matrix!"<<endl;	
+		ERROR_LOG("Failed to approximate covariance to nearest symm & pos-def matrix!");
 		return -1;
 	}
 	
@@ -330,7 +331,7 @@ int Util::MakeSymmPosDefCovarianceMatrix(TMatrixD& covMatrix)
 		}
 	}//close try
 	catch(...){
-		cerr<<"ERROR: Failed to retrieve corrected cov matrix and update given matrix!"<<endl;
+		ERROR_LOG("Failed to retrieve corrected cov matrix and update given matrix!");
 		return -1;
 	}
 
@@ -342,7 +343,7 @@ TMatrixD* Util::GetDiagonalMatrix(TMatrixD* dataMatrix)
 {
 	//Check data matrix
 	if(!dataMatrix){
-		cerr<<"ERROR: Null ptr to matrix given!"<<endl;	
+		ERROR_LOG("Null ptr to matrix given!");
 		return nullptr;
 	}
 	long int nCols= dataMatrix->GetNcols();
@@ -350,7 +351,7 @@ TMatrixD* Util::GetDiagonalMatrix(TMatrixD* dataMatrix)
 	
 	//Check for square matrix
 	if(nCols!=nRows){
-		cerr<<"ERROR: Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a simmetric matrix!)"<<endl;
+		ERROR_LOG("Number of matrix cols ("<<nCols<<") different from number of rows ("<<nRows<<") (hint: you must pass a simmetric matrix!)");
 		return nullptr;
 	}
 
@@ -372,7 +373,7 @@ TMatrixD* Util::ComputeRTableColMeans(std::string RTable,std::string colMeansRNa
 {
 	//Check table name
 	if(RTable==""){
-		cerr<<"ERROR: Empty R table name!"<<endl;	
+		ERROR_LOG("Empty R table name!");
 		return nullptr;
 	}
 
@@ -384,14 +385,14 @@ TMatrixD* Util::ComputeRTableColMeans(std::string RTable,std::string colMeansRNa
 		Util::fR.parseEval(RCmd.c_str());
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to compute data column means in R!"<<endl;
+		ERROR_LOG("Failed to compute data column means in R!");
 		return nullptr;
 	}
 
 	//Convert data to TMatrixD
 	TMatrixD* colMeans= Util::ConvertRVectToROOTMatrix(colMeansRName);
 	if(!colMeans){
-		cerr<<"ERROR: Failed to convert R vector to ROOT!"<<endl;
+		ERROR_LOG("Failed to convert R vector to ROOT!");
 		return nullptr;
 	}
 
@@ -404,7 +405,7 @@ TMatrixD* Util::ComputeCovarianceMatrixFromRTable(std::string RTable,std::string
 {
 	//Check table name
 	if(RTable==""){
-		cerr<<"ERROR: Empty R table name!"<<endl;	
+		ERROR_LOG("Empty R table name!");
 		return nullptr;
 	}
 
@@ -417,14 +418,14 @@ TMatrixD* Util::ComputeCovarianceMatrixFromRTable(std::string RTable,std::string
 		Util::fR.parseEval(RCmd.c_str());
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to compute data covariance matrix in R!"<<endl;
+		ERROR_LOG("Failed to compute data covariance matrix in R!");
 		return nullptr;
 	}
 
 	//Convert data to TMatrixD
 	TMatrixD* covMatrix= Util::ConvertRTableToROOTMatrix(covMatrixRName);
 	if(!covMatrix){
-		cerr<<"ERROR: Failed to convert cov matrix from R to ROOT!"<<endl;
+		ERROR_LOG("Failed to convert cov matrix from R to ROOT!");
 		return nullptr;
 	}
 
@@ -437,7 +438,7 @@ TMatrixD* Util::ConvertRVectToROOTMatrix(std::string RVect)
 {
 	//Check table name
 	if(RVect==""){
-		cerr<<"ERROR: Empty R vector name!"<<endl;	
+		ERROR_LOG("Empty R vector name!");
 		return nullptr;
 	}
 
@@ -455,7 +456,7 @@ TMatrixD* Util::ConvertRVectToROOTMatrix(std::string RVect)
 		}
 	}//close try block
 	catch(...){
-		cerr<<"ERROR: Failed to retrieve data table and relative size with imputed values in R!"<<endl;
+		ERROR_LOG("Failed to retrieve data table and relative size with imputed values in R!");
 		return nullptr;
 	}
 
@@ -468,7 +469,7 @@ TMatrixD* Util::ConvertRTableToROOTMatrix(std::string RTable)
 {
 	//Check table name
 	if(RTable==""){
-		cerr<<"ERROR: Empty R table name!"<<endl;	
+		ERROR_LOG("Empty R table name!");
 		return nullptr;
 	}
 
@@ -492,7 +493,7 @@ TMatrixD* Util::ConvertRTableToROOTMatrix(std::string RTable)
 		}
 	}//close try block
 	catch(...){
-		cerr<<"ERROR: Failed to retrieve data table and relative size with imputed values in R!"<<endl;
+		ERROR_LOG("Failed to retrieve data table and relative size with imputed values in R!");
 		return nullptr;
 	}
 
@@ -505,7 +506,7 @@ int Util::ImportMatrixInR(TMatrixD* dataMatrix,std::string dataname)
 	//## Comvert matrix to R
 	Rcpp::NumericMatrix* matrix_r= ConvertROOTMatrixToRMatrix(dataMatrix);
 	if(!matrix_r){
-		cerr<<"ERROR: Failed to convert ROOT matrix to R!"<<endl;
+		ERROR_LOG("Failed to convert ROOT matrix to R!");
 		return -1;
 	}
 
@@ -514,7 +515,7 @@ int Util::ImportMatrixInR(TMatrixD* dataMatrix,std::string dataname)
 		fR[dataname.c_str()]= *matrix_r;
 	}
 	catch(...){
-		cerr<<"ERROR: Failed to import RNumeric matrix in R prompt!"<<endl;
+		ERROR_LOG("Failed to import RNumeric matrix in R prompt!");
 		return -1;
 	}
 
@@ -532,7 +533,7 @@ Rcpp::NumericMatrix* Util::ConvertROOTMatrixToRMatrix(TMatrixD* dataMatrix)
 {
 	//## Check data
 	if(!dataMatrix){
-		cerr<<"ERROR: Null ptr to data matrix given!"<<endl;
+		ERROR_LOG("Null ptr to data matrix given!");
 		return nullptr;
 	}
 
@@ -555,7 +556,7 @@ TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFra
 {
 	//## Check data
 	if(!dataMatrix){
-		cerr<<"ERROR: Null ptr to data matrix given!"<<endl;
+		ERROR_LOG("Null ptr to data matrix given!");
 		return nullptr;
 	}
 
@@ -582,7 +583,7 @@ TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFra
 	
 	while(missingCounter<NMissingElements){
 
-		if(missingCounter%100==0) cout<<"--> "<<missingCounter<<"/"<<NMissingElements<<" events generated..."<<endl;
+		if(missingCounter%100==0) INFO_LOG("--> "<<missingCounter<<"/"<<NMissingElements<<" events generated ...");
 
 		long int eventId= static_cast<long int>(gRandom->Uniform(0,N));
 		long int variableId= static_cast<long int>(gRandom->Uniform(0,nDim));
@@ -618,7 +619,7 @@ int Util::DumpMatrixToAsciiFile(TMatrixD* dataMatrix,std::string filename)
 {
 	//Check filename
 	if(filename==""){
-		cerr<<"WARN: Empty output file specified!"<<endl;
+		WARN_LOG("Empty output file specified!");
 		return -1;
 	}
 

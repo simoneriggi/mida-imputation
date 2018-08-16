@@ -62,9 +62,13 @@ CPPFLAGS_ROOT= -I$(ROOTSYS)/include
 CPPFLAGS_R = $(shell $(R_HOME)/bin/R CMD config --cppflags)
 CPPFLAGS_R += $(shell echo 'Rcpp:::CxxFlags()' | $(R_HOME)/bin/R --vanilla --slave)
 CPPFLAGS_RINSIDE = $(shell echo 'RInside:::CxxFlags()' | $(R_HOME)/bin/R --vanilla --slave)
+CPPFLAGS_LOG4CXX= -I$(LOG4CXX_DIR)/include
+CPPFLAGS_BOOST= -I$(BOOST_ROOT)/include
 
 CPPFLAGS += $(CPPFLAGS_ROOT) 
 CPPFLAGS += $(CPPFLAGS_R) $(CPPFLAGS_RINSIDE) 
+CPPFLAGS += $(CPPFLAGS_LOG4CXX)
+CPPFLAGS += $(CPPFLAGS_BOOST)
 
 ###########################
 ###  LDFLAGS   ############
@@ -77,10 +81,15 @@ LDFLAGS_R += $(shell $(R_HOME)/bin/R CMD config BLAS_LIBS)
 LDFLAGS_R += $(shell $(R_HOME)/bin/R CMD config LAPACK_LIBS)
 LDFLAGS_R += $(shell echo 'Rcpp:::LdFlags()'  | $(R_HOME)/bin/R --vanilla --slave)
 LDFLAGS_RINSIDE = $(shell echo 'RInside:::LdFlags()'  | $(R_HOME)/bin/R --vanilla --slave)
+LDFLAGS_LOG4CXX= -L$(LOG4CXX_DIR)/lib -llog4cxx
+LDFLAGS_BOOST= -L$(BOOST_ROOT)/lib -lboost_regex
+
 
 LDFLAGS = $(LDFLAGS_SYSTEM)
 LDFLAGS += $(LDFLAGS_ROOT) 
 LDFLAGS += $(LDFLAGS_R) $(LDFLAGS_RINSIDE)
+LDFLAGS += $(LDFLAGS_LOG4CXX)
+LDFLAGS += $(LDFLAGS_BOOST)
 ################################################################
 
 
