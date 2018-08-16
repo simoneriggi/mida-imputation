@@ -62,9 +62,34 @@ class Util : public TObject {
 	public:
 
 		/**
+		* \brief Force input matrix to be diagonal
+		*/
+		static void MakeDiagonalMatrix(TMatrixD& C);
+
+		/**
+		* \brief Force input matrix to be symmetric
+		*/
+		static int MakeSymmetricMatrix(TMatrixD& C);
+
+		/**
+		* \brief Compute symmetric matrix eigenvectors and eigenvalues
+		*/
+		static int ComputeSymMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,const TMatrixD& inputMatrix);
+
+		/**
+		* \brief Compute matrix eigenvectors and eigenvalues
+		*/
+		static int ComputeMatrixEigenvalues(TMatrixD& eigenVals,TMatrixD& eigenVects,TMatrixD& inputMatrix,bool forceSymmetric=false);
+
+		/**
+		* \brief Compute matrix eigenvectors and eigenvalues
+		*/
+		static int ComputeMatrixEigenvaluesInR(TMatrixD& eigenVals,TMatrixD& eigenVects,TMatrixD& inputMatrix,bool forceSymmetric=false);
+
+		/**
 		* \brief Correct covariance matrix
 		*/
-		static int CorrectCovarianceMatrix(TMatrixD* covMatrix);
+		static int MakeSymmPosDefCovarianceMatrix(TMatrixD& covMatrix);
 
 		/**
 		* \brief Load R libraries

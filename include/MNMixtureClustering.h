@@ -79,9 +79,16 @@ struct MNClusteringOptions
 		fixMeanPars= false;
 		fixCovariancePars= false;
 		forceDiagonalCovariance= false;
+		useConstraints= false;
+		useCovarianceEigenBoundConstraint= false;
+		constraintAlphaScale= 1.2;
+		constraintAlphaTolerance= 1.e-6;
+
 		P_start.clear();
 		Mu_start.clear();
 		Sigma_start.clear();
+		SigmaEigen_min.clear();
+		SigmaEigen_max.clear();
 	}
 
 	//- Options	
@@ -99,11 +106,22 @@ struct MNClusteringOptions
 	bool fixMeanPars;
 	bool fixCovariancePars;
 	bool forceDiagonalCovariance;
-	
+
+	//- Constraint options
+	bool useConstraints;
+	bool useCovarianceEigenBoundConstraint;
+	double constraintAlphaScale;
+	double constraintAlphaTolerance;
+
 	//- User mixture pars
 	std::vector<double> P_start;
 	std::vector<TMatrixD> Mu_start;
 	std::vector<TMatrixD> Sigma_start;
+
+	//- Sigma eigen bounds
+	std::vector<TMatrixD> SigmaEigen_min;
+	std::vector<TMatrixD> SigmaEigen_max;
+
 
 };//close MNClusteringOptions struct
 
@@ -156,6 +174,10 @@ class MNMixtureClustering : public TObject {
 		*/
 		int RunEM_MStep();
 		/**
+		* \brief Run EM algorithm constrain step
+		*/
+		int RunEM_ConstrainStep();
+		/**
 		* \brief Init mixture parameters to KMeans clustering
 		*/
 		int InitParsToKMeans();
@@ -196,7 +218,7 @@ class MNMixtureClustering : public TObject {
 		/**
 		* \brief Check covariance matrix for given component
 		*/
-		int CheckCovariance(int componentId);
+		int CheckCovariance();
 
 	private:
 
@@ -240,10 +262,8 @@ class MNMixtureClustering : public TObject {
 		std::vector<TMatrixD> fSigma_start;//covariance for each mixture of size (fNDim x fNDim)
 		std::vector<TMatrixD> fSigmaInv_start;
 		std::vector<TMatrixD> fSigmaEigen_start;
+		std::vector<TMatrixD> fSigmaEigenvect_start;
 
-		//- Boundary pars
-		std::vector<TMatrixD> fSigmaEigen_min;
-		std::vector<TMatrixD> fSigmaEigen_max;
 
 		//- Fitted component parameters
 		static std::vector<double> fP;//mixture weights
@@ -252,6 +272,7 @@ class MNMixtureClustering : public TObject {
 		static std::vector<TMatrixD> fSigmaInv;
 		static std::vector<double> fSigmaDet;
 		std::vector<TMatrixD> fSigmaEigen;
+		std::vector<TMatrixD> fSigmaEigenvect;
 		std::vector<TMatrixD> fMuDiff;
 		std::vector<TMatrixD> fSigmaDiff;
 

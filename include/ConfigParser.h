@@ -77,6 +77,14 @@ class ConfigParser {
 		static std::vector<TMatrixD> fCovarianceStartPars;
 		static std::vector<double> fFractionStartPars;	
 
+		//## Constraint parameters
+		static bool fUseConstraints;
+		static double fConstraintAlphaScale;
+		static double fConstraintAlphaTolerance;
+		static bool fUseCovarianceEigenBoundConstraint;
+		static std::vector<TMatrixD> fCovarianceEigenMinBound;
+		static std::vector<TMatrixD> fCovarianceEigenMaxBound;
+
 		/*
 		static bool fUseDeltaLStoppingCriteria;	
 		static double fDeltaLEpsilon;
@@ -86,8 +94,7 @@ class ConfigParser {
 
 		static bool fUseTruncatedEM;
 		static bool fUseCensoredEM;
-		static bool fUseMissingDataEM;
-	
+		
 	
 		static bool fUseKMeansStart;
 		static bool fUseRandomStart;
@@ -101,10 +108,9 @@ class ConfigParser {
 		static bool fUseRandomFractionStart;
 		static bool fUseMeanImputationStart;
 
-		static bool fUseConstraint;
+		
 		static bool fUseRandomRegenerationAfterStuck;
-		static double fConstraintAlphaScale;
-		static double fConstraintAlphaTolerance;
+		
 		
 		static bool fUseMeanConstraint;
 		static bool fUseMeanBoundConstraint;	
@@ -149,9 +155,7 @@ class ConfigParser {
 		static std::vector<TMatrixD> fDeltaModelPar;
 		static std::vector<double> fNuModelPar;
 
-		static std::vector<TMatrixD> fCovarianceEigenMinBound;
-		static std::vector<TMatrixD> fCovarianceEigenMaxBound;
-
+		
 		static bool fUseMeanOffset; 
 		static std::vector<TMatrixD> fMeanOffsetPar;
 
