@@ -145,7 +145,7 @@ int MNMixtureClustering::Init()
 	//std::vector<std::string> RLibraries{"mvtnorm","tmvtnorm","fMultivar","Matrix","moments"};
 	std::vector<std::string> RLibraries{"Matrix"};
 	if(Util::LoadRLibraries(RLibraries)<0){
-		cerr<<"ERROR: Failed to load one or more of these R libraries {mvtnorm,tmvtnorm,fMultivar,Matrix,moments}, check if they are installed!"<<endl;
+		ERROR_LOG("Failed to load one or more of these R libraries {Matrix}, check if they are installed!");
 		return -1;
 	}
 
@@ -160,21 +160,21 @@ int MNMixtureClustering::Init()
 int MNMixtureClustering::ReadData()
 {
 	//## Read ascii data to ROOT matrix
-	cout<<"INFO: Start reading data ..."<<endl;
+	INFO_LOG("Start reading data ...");
 	fDataMatrix= DataReader::ReadAscii(fFileName,fOptions.dataDelimiter);
 	if(!fDataMatrix){
-		cerr<<"ERROR: Failed to read data from file "<<fFileName<<"!"<<endl;
+		ERROR_LOG("Failed to read data from file "<<fFileName<<"!");
 		return -1;
 	}
 	fNDim= fDataMatrix->GetNcols();
 	fN= fDataMatrix->GetNrows();
-	cout<<"INFO: Read "<<fN<<" x "<<fNDim<<" data table..."<<endl;
+	INFO_LOG("Read "<<fN<<" x "<<fNDim<<" data table...");
 
 	//## Create matrix data copy (to be filled with imputed values)
 	fDataMatrix_imp= new TMatrixD(fN,fNDim);
 
 	//## Store index with observed and missing patterns in data matrix	
-	cout<<"INFO: Store indexes with observed and missing patterns..."<<endl;
+	INFO_LOG("Store indexes with observed and missing patterns...");
 	for(long int i=0;i<fN;i++){	
 		fObsDataIndexList.push_back( std::vector<long int>() );
 		fMissingDataIndexList.push_back( std::vector<long int>() );
@@ -226,14 +226,14 @@ int MNMixtureClustering::ReadData()
 	}//end loop events
 
 	//## Import matrix also in R for later use
-	cout<<"INFO: Reading data table in R..."<<endl;
+	INFO_LOG("Reading data table in R...");
 	if(DataReader::ReadAsciiInR(fFileName,fOptions.dataDelimiter,fRTableName)<0){
-		cerr<<"ERROR: Failed to read ascii file and import it as an R table with name "<<fRTableName<<"!"<<endl;
+		ERROR_LOG("Failed to read ascii file and import it as an R table with name "<<fRTableName<<"!");
 		return -1;
 	}
 
 	//## Complete missing data with pre-imputation method
-	cout<<"INFO: Running pre-imputation method "<<fOptions.preImputationMethod<<" ..."<<endl;
+	INFO_LOG("Running pre-imputation method "<<fOptions.preImputationMethod<<" ...");
 	fDataMatrix_preImp= nullptr;
 	if(fOptions.preImputationMethod==MNClusteringOptions::eMEAN) {
 		fDataMatrix_preImp= MeanImputation::RunImputationFromRTable(fRTableName,fRTableName_preImp);
@@ -242,18 +242,18 @@ int MNMixtureClustering::ReadData()
 		fDataMatrix_preImp= ListwiseDeletion::RunImputationFromRTable(fRTableName,fRTableName_preImp);
 	}
 	else {
-		cerr<<"ERROR: Invalid pre-impute method "<<fOptions.preImputationMethod<<"!"<<endl;
+		ERROR_LOG("Invalid pre-impute method "<<fOptions.preImputationMethod<<"!");
 		return -1;
 	}
 	if(!fDataMatrix_preImp){
-		cerr<<"ERROR: Failed to pre-impute data with method "<<fOptions.preImputationMethod<<"!"<<endl;
+		ERROR_LOG("Failed to pre-impute data with method "<<fOptions.preImputationMethod<<"!");
 		return -1;
 	}
 
 	//## Compute covariance matrix & means of completed data with pre-imputation method
 	fMeanData= Util::ComputeRTableColMeans(fRTableName_preImp);
 	if(!fMeanData){
-		cerr<<"ERROR: Failed to compute means of pre-imputed data!"<<endl;
+		ERROR_LOG("Failed to compute means of pre-imputed data!");
 		return -1;
 	}
 	cout<<"*** PRE-IMPUTED DATA - MEANS ***"<<endl;
@@ -280,19 +280,19 @@ int MNMixtureClustering::RunImputation(std::string filename,MNClusteringOptions 
 
 	//## Init data structures
 	if(Init()<0){
-		cerr<<"ERROR: Initialization failed!"<<endl;
+		ERROR_LOG("Initialization failed!");
 		return -1;
 	}
 	
 	//## Read input data
 	if(ReadData()<0){
-		cerr<<"ERROR: Failed to read data from file "<<fFileName<<"!"<<endl;
+		ERROR_LOG("Failed to read data from file "<<fFileName<<"!");
 		return -1;
 	}
 
 	//## Run the EM algorithm
 	if(RunEMClustering()<0){
-		cerr<<"ERROR: EM clustering stage failed!"<<endl;
+		ERROR_LOG("EM clustering stage failed!");
 		return -1;
 	}
 	
@@ -318,7 +318,7 @@ int MNMixtureClustering::RunEMClustering()
 {
 	//## EM initialization phase
 	if(RunEM_Init()<0){
-		cerr<<"ERROR: EM initialization step failed!"<<endl;
+		ERROR_LOG("EM initialization step failed!");
 		return -1;
 	}
 
@@ -331,7 +331,7 @@ int MNMixtureClustering::RunEMClustering()
 	*/
 
 	//## Start EM iteration loop
-	cout<<"INFO: Starting EM iteration loop (#"<<fOptions.nIterations<<" max niters) ..."<<endl;
+	INFO_LOG("Starting EM iteration loop (#"<<fOptions.nIterations<<" max niters) ...");
 	fLogLikelihood= 0.;
 
 	for(int iter=0;iter<fOptions.nIterations;iter++)
@@ -343,13 +343,13 @@ int MNMixtureClustering::RunEMClustering()
 		//############################################################			
 		double LL= 0;
 		if(RunEM_EStep(LL)<0){
-			cerr<<"ERROR: EM EStep failed at iter no. "<<iter+1<<"!"<<endl;
+			ERROR_LOG("EM EStep failed at iter no. "<<iter+1<<"!");
 			return -1;
 		}
 		double DeltaLogL= LL-fLogLikelihood;
 	
 		if(iter>1 && fOptions.useStoppingCriteria && DeltaLogL<fOptions.epsilon){
-			cout<<"INFO: Stop criteria matched (LL="<<LL<<" DeltaLogL="<<DeltaLogL<<"< eps="<<fOptions.epsilon<<")...exit iteration!"<<endl;
+			INFO_LOG("Stopping criteria reached (LL="<<LL<<" DeltaLogL="<<DeltaLogL<<"< eps="<<fOptions.epsilon<<"), stop iteration.");
 			break;
 		}
 
@@ -368,7 +368,7 @@ int MNMixtureClustering::RunEMClustering()
 		//## Constrain Step
 		//############################################################
 		if(fOptions.useConstraints && RunEM_ConstrainStep()<0){
-			cerr<<"ERROR: Failed to run EM constraint step!"<<endl;
+			ERROR_LOG("Failed to run EM constraint step!");
 			return -1;
 		}
 
@@ -422,7 +422,7 @@ int MNMixtureClustering::RunEMClustering()
 		int nDim_miss= (int)(fMissingDataIndexList[i].size());
 				
 		if(nDim_obs<=0){
-			cout<<"--> No observed data...skip event!"<<endl;
+			DEBUG_LOG("No observed data, skip event...");
 			continue;
 		}
 
@@ -529,20 +529,19 @@ int MNMixtureClustering::RunEM_Init()
 		status= InitParsToKMeans();
 	}
 	else if(fOptions.parInitMethod==MNClusteringOptions::eRANDOM){	
-		cerr<<"ERROR: Randomized parameter initialization not yet implemented!"<<endl;
+		ERROR_LOG("Randomized parameter initialization not yet implemented!");
 		status= -1;		
 	}
 	else if(fOptions.parInitMethod==MNClusteringOptions::eUSER){
-		//cerr<<"ERROR: User-provided parameter initialization not yet implemented!"<<endl;
 		status= InitParsToUser();
 	}
 	else{
-		cerr<<"ERROR: Invalid par initialization method given ("<<fOptions.parInitMethod<<")!"<<endl;
+		ERROR_LOG("Invalid par initialization method given ("<<fOptions.parInitMethod<<")!");
 		return -1;
 	}
 
 	if(status<0){
-		cerr<<"ERROR: EM parameter initialization failed!"<<endl;
+		ERROR_LOG("EM parameter initialization failed!");
 		return -1;
 	}
 
@@ -575,14 +574,14 @@ int MNMixtureClustering::RunEM_Init()
 		fSigmaDet[k]= fSigma[k].Determinant();	
 		fSigmaInv[k]= TMatrixD(TMatrixD::kInverted,fSigma[k]);
 		if (fSigmaDet[k]<=0) {
-			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
+			WARN_LOG("Covariance matrix inversion failed for component "<<k+1<<" (SigmaDet="<<fSigmaDet[k]<<")!");
 			return -1;
 		}	
 
 		//Compute eigenvalues
 		//NB: Fails if imput matrix not symmetric
 		if(Util::ComputeSymMatrixEigenvalues(fSigmaEigen[k],fSigmaEigenvect[k],fSigma[k])<0){
-			cerr<<"ERROR: Failed to compute covariance matrix eigenvalues for component "<<k+1<<"!"<<endl;
+			ERROR_LOG("Failed to compute covariance matrix eigenvalues for component "<<k+1<<"!");
 			return -1;
 		}
 
@@ -594,7 +593,7 @@ int MNMixtureClustering::RunEM_Init()
 				double lambdaMax= fOptions.SigmaEigen_max[k](0,j);
 
 				if(lambda<=lambdaMin || lambda>=lambdaMax){
-					cerr<<"ERROR: Eigenvalues for component no. "<<k+1<<" not satisfying the constraints for component "<<k+1<<" (lambda="<<lambda<<" min/max="<<lambdaMin<<"/"<<lambdaMax<<")...exit!"<<endl;
+					WARN_LOG("Eigenvalues for component no. "<<k+1<<" not satisfying the constraints for component "<<k+1<<" (lambda="<<lambda<<" min/max="<<lambdaMin<<"/"<<lambdaMax<<")");
 					return -1;
 				}
 			}//end loop ndim
@@ -698,7 +697,7 @@ int MNMixtureClustering::RunEM_Init()
 	*/
 
 	//## Assign starting values
-	cout<<"MSTMixtureFitter::EMInit(): Starting parameters..."<<endl;
+	INFO_LOG("Starting parameters...");
 	for(int k=0;k<fOptions.nComponents;k++){	
 		
 		fMu_start[k]= fMu[k];
@@ -763,11 +762,13 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 		fSigmaDet[k]= SigmaDet;	
   		
 		if (SigmaDet<=0) {
-			cerr<<"WARN: Covariance matrix inversion failed for component "<<k+1<<" Sigma=(";
+			std::stringstream ss;
+			ss<<"Covariance matrix inversion failed for component "<<k+1<<" Sigma=(";
 			for(int l=0;l<fNDim;l++) {
-				for(int j=0;j<fNDim;j++) cout<<fSigma[k](l,j)<<",";
+				for(int j=0;j<fNDim;j++) ss<<fSigma[k](l,j)<<",";
 			}
-			cerr<<")  SigmaDet="<<fSigmaDet[k]<<")!"<<endl;
+			ss<<")  SigmaDet="<<fSigmaDet[k]<<")!";
+			WARN_LOG(ss.str());
 			return -1;
 		}		
 	}//end loop mixtures
@@ -783,7 +784,7 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 		int nDim_obs= (int)(fObsDataIndexList[i].size());
 		int nDim_miss= (int)(fMissingDataIndexList[i].size());
 		if(nDim_obs<=0) {
-			cout<<"--> No observed data...skip event!"<<endl;
+			WARN_LOG("No observed data, skip event...");
 			continue;
 		}
 				
@@ -817,7 +818,7 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 				//SigmaInv_obs= Sigma_obs;
 				//SigmaInv_obs= SigmaInv_obs.Invert(&SigmaDet_obs);
 				if (SigmaDet_obs<=0) {
-					cerr<<"WARN: Observed Covariance matrix inversion failed!"<<endl;
+					WARN_LOG("Observed Covariance matrix inversion failed!");
 				}
 
 				tauComponent= MathUtils::tauGaus(fData_obs[i],Mu_obs,SigmaInv_obs,SigmaDet_obs,fP[k]);
@@ -844,12 +845,13 @@ int MNMixtureClustering::RunEM_EStep(double& LL)
 		for(int k=0;k<fOptions.nComponents;k++) {
 			if(tauSum>0) fTau[i][k]/= tauSum;
 			else{
-				cerr<<"ERROR: Negative or null tau sum for event no. "<<i<<" (tauSum="<<tauSum<<" data(";
+				std::stringstream ss;
+				ss<<"Negative or null tau sum for event no. "<<i<<" (tauSum="<<tauSum<<" data(";
 				for(int j=0;j<fNDim;j++){
-					//cerr<<fData[i](j,0)<<",";	
-					cerr<<fData[i](0,j)<<",";
+					ss<<fData[i](0,j)<<",";
 				}
-				cerr<<")...exit!"<<endl;
+				ss<<") ...exit!";
+				WARN_LOG(ss.str());
 				return -1;
 			}
 		}//end loop mixture components
@@ -891,7 +893,7 @@ int MNMixtureClustering::RunEM_MStep()
 			int nDim_miss= (int)(fMissingDataIndexList[i].size());
 				
 			if(nDim_obs<=0){
-				cout<<"--> No observed data...skip event!"<<endl;
+				WARN_LOG("No observed data, skip event...");
 				continue;
 			}
 
@@ -1010,7 +1012,7 @@ int MNMixtureClustering::RunEM_MStep()
 
 	//## Check covariance matrix integrity
 	if(!fOptions.fixCovariancePars && CheckCovariance()<0){
-		cerr<<"ERROR: Failed to perform checks in covariance matrix!"<<endl;
+		WARN_LOG("Failed to perform checks in covariance matrix!");
 		return -1;
 	}
 
@@ -1021,6 +1023,8 @@ int MNMixtureClustering::RunEM_MStep()
 
 int MNMixtureClustering::RunEM_ConstrainStep()
 {
+	INFO_LOG("Running EM constraint step...");
+
 	//==================================================
 	//==      SIGMA EIGENVALUES BOUND CONSTRAINT
 	//==================================================
@@ -1045,12 +1049,12 @@ int MNMixtureClustering::RunEM_ConstrainStep()
 				if(Lambda<Lambda_min){//min constraint violated
 					alphaLambda_minmax[j]= alphaLambda_minBound;
 					isSigmaEigenBoundConstraintViolated= true;
-					cout<<"DEBUG: Covariance min eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMin="<<Lambda_min<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_minBound<<endl;	
+					DEBUG_LOG("Covariance min eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMin="<<Lambda_min<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_minBound);
 				}
 				if(Lambda>Lambda_max){//max constraint violated
 					alphaLambda_minmax[j]= alphaLambda_maxBound;
 					isSigmaEigenBoundConstraintViolated= true;
-					cout<<"DEBUG: Covariance max eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMax="<<Lambda_max<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_maxBound<<endl;		
+					DEBUG_LOG("Covariance max eigen bound constraint violated for component no. "<<k+1<<":  eigen="<<Lambda<<"  eigenMax="<<Lambda_max<<"  eigenSafe="<<Lambda_safe<<"  alpha="<<alphaLambda_maxBound);
 				}
 			}//end loop dim
 
@@ -1059,20 +1063,21 @@ int MNMixtureClustering::RunEM_ConstrainStep()
 			
 				//## Find mix alpha value and define optimal alpha
 				double alphaEigenMin= 1;
-				cout<<"DEBUG: alphaSigmaEigenList (";
+				std::stringstream ss;
+				ss<<"alphaSigmaEigenList (";
 				for(int j=0;j<fNDim;j++){
-					cout<<alphaLambda_minmax[j]<<",";
+					ss<<alphaLambda_minmax[j]<<",";
 					if(alphaLambda_minmax[j]<alphaEigenMin) alphaEigenMin= alphaLambda_minmax[j];
 				}				
-				cout<<")"<<endl;
-			
+				ss<<")";
+				DEBUG_LOG(ss.str());	
 				double alphaEigenOpt= alphaEigenMin/fOptions.constraintAlphaScale;
 
-				cout<<"DEBUG: alphaEigenMin="<<alphaEigenMin<<", alphaEigenOpt="<<alphaEigenOpt<<endl;
+				DEBUG_LOG("alphaEigenMin="<<alphaEigenMin<<", alphaEigenOpt="<<alphaEigenOpt);
 
 				//## Update sigma eigen values
 				if(alphaEigenOpt<fOptions.constraintAlphaTolerance) {
-					cout<<"WARN: Covariance eigen for component "<<k+1<<" is stuck in constraint ("<<alphaEigenOpt<<"<"<<fOptions.constraintAlphaTolerance<<")!"<<endl;		
+					WARN_LOG("Covariance eigen for component "<<k+1<<" is stuck in constraint ("<<alphaEigenOpt<<"<"<<fOptions.constraintAlphaTolerance<<")!");
 					fSigmaEigen[k]= fSigmaEigen_start[k];
 				}
 				else{
@@ -1084,14 +1089,18 @@ int MNMixtureClustering::RunEM_ConstrainStep()
 				}
 				
 				//## Re-Calculate covariance starting from the updated eigenvalues
-				fSigma[k]= fSigmaEigenvect[k]*fSigmaEigen[k]*TMatrixD(TMatrixD::kInverted,fSigmaEigenvect[k]);
+				INFO_LOG("Recompute covariance starting from the updated eigenvalues (SigmaEigenvect="<<fSigmaEigenvect[k].GetNrows()<<"x"<<fSigmaEigenvect[k].GetNcols()<<", SigmaEigen="<<fSigmaEigen[k].GetNrows()<<"x"<<fSigmaEigen[k].GetNcols()<<") ...");
+
+				TMatrixD eigenMatrix(fNDim,fNDim);
+				for(int l=0;l<fNDim;l++) eigenMatrix(l,l)= fSigmaEigen[k](0,l);
+				fSigma[k]= fSigmaEigenvect[k]*eigenMatrix*TMatrixD(TMatrixD::kInverted,fSigmaEigenvect[k]);
 
 			}//close if isSigmaEigenBoundConstraintViolated
 		}//end loop components
 
 		//## Check covariance (re-compute inverse, determinant, etc)
 		if(CheckCovariance()<0){
-			cerr<<"ERROR: Failed to check covariance after eigen constraint!"<<endl;
+			WARN_LOG("Failed to check covariance after eigen constraint!");
 			return -1;
 		}
 				
@@ -1486,12 +1495,12 @@ int MNMixtureClustering::RunEM_ConstrainStep()
 
 int MNMixtureClustering::InitParsToUser()
 {
-	cout<<"INFO: Initializing mixture parameters with user defaults..."<<endl;
+	INFO_LOG("Initializing mixture parameters with user defaults...");
 
 	//Check fractions weights and set to starting values
 	int nFractionPars= static_cast<int>(fOptions.P_start.size());
 	if(nFractionPars!=fOptions.nComponents){
-		cerr<<"ERROR: Number of components weights given as arg ("<<nFractionPars<<") is different from nComponents ("<<fOptions.nComponents<<")!"<<endl;
+		ERROR_LOG("Number of components weights given as arg ("<<nFractionPars<<") is different from nComponents ("<<fOptions.nComponents<<")!");
 		return -1;
 	}
 	for(int k=0;k<fOptions.nComponents;k++){
@@ -1499,21 +1508,21 @@ int MNMixtureClustering::InitParsToUser()
 	}
 	
 	//Check component means
-	cout<<"DEBUG: Print start means..."<<endl;
+	INFO_LOG("Print start means...");
 	for(size_t k=0;k<fOptions.Mu_start.size();k++){
 		fOptions.Mu_start[k].Print();
 	}
 
 	int nMeanComponents= static_cast<int>(fOptions.Mu_start.size());
 	if(nMeanComponents != fOptions.nComponents){
-		cerr<<"ERROR: Number of user mean components ("<<nMeanComponents<<") is different from nComponents ("<<fOptions.nComponents<<")!"<<endl;
+		ERROR_LOG("Number of user mean components ("<<nMeanComponents<<") is different from nComponents ("<<fOptions.nComponents<<")!");
 		return -1;
 	}
 	for(size_t k=0;k<(fOptions.Mu_start).size();k++){
 		//int meanVectDim= (fOptions.Mu_start)[k].GetNrows();
 		int meanVectDim= (fOptions.Mu_start)[k].GetNcols();
 		if(meanVectDim!=fNDim){
-			cerr<<"ERROR: User mean vector size for component no. "<<k+1<<" is not equal to nDim="<<fNDim<<"!"<<endl;
+			ERROR_LOG("User mean vector size for component no. "<<k+1<<" is not equal to nDim="<<fNDim<<"!");
 			return -1;
 		}
 		fMu[k]= (fOptions.Mu_start)[k];
@@ -1522,14 +1531,14 @@ int MNMixtureClustering::InitParsToUser()
 	//Check sigmas
 	int nSigmaComponents= static_cast<int>(fOptions.Sigma_start.size());
 	if(nSigmaComponents != fOptions.nComponents){
-		cerr<<"ERROR: Number of user sigma components ("<<nSigmaComponents<<") is different from nComponents ("<<fOptions.nComponents<<")!"<<endl;
+		ERROR_LOG("Number of user sigma components ("<<nSigmaComponents<<") is different from nComponents ("<<fOptions.nComponents<<")!");
 		return -1;
 	}
 	for(size_t k=0;k<(fOptions.Sigma_start).size();k++){
 		int nRows= (fOptions.Sigma_start)[k].GetNrows();
 		int nCols= (fOptions.Sigma_start)[k].GetNcols();
 		if(nRows!=fNDim || nCols!=fNDim){
-			cerr<<"ERROR: User sigma matrix for component no. "<<k+1<<" has size different from nDim x nDim (nDim="<<fNDim<<")!"<<endl;
+			ERROR_LOG("User sigma matrix for component no. "<<k+1<<" has size different from nDim x nDim (nDim="<<fNDim<<")!");
 			return -1;
 		}
 		fSigma[k]= (fOptions.Sigma_start)[k];
@@ -1541,12 +1550,12 @@ int MNMixtureClustering::InitParsToUser()
 
 int MNMixtureClustering::InitParsToKMeans()
 {
-	cout<<"INFO: Initializing mixture parameters with k-means..."<<endl;
+	INFO_LOG("Initializing mixture parameters with k-means...");
 
 	//## Perform Kmeans clustering on pre-completed data
 	KMeansClustering kmeans;
 	if(kmeans.RunKMedians(fRTableName_preImp,fOptions.nComponents)<0){
-		cerr<<"ERROR: KMeans clustering run failed!"<<endl;
+		ERROR_LOG("KMeans clustering run failed!");
 		return -1;
 	}
 
@@ -1559,14 +1568,14 @@ int MNMixtureClustering::InitParsToKMeans()
 	
 
 	//## Assign cluster weights as fraction start
-	cout<<"INFO: Assign the start fraction parameters according to kmeans cluster weights..."<<endl;
+	INFO_LOG("Assign the start fraction parameters according to kmeans cluster weights...");
 	for(int k=0;k<fOptions.nComponents;k++){
 		double clusterSize= (*clusterSizes)(k,0);
 		fP[k]= clusterSize/(double)(fN);
 	}//end loop components
 
 	//## Assign cluster covariance as covariance par start
-	cout<<"INFO: Assign the start covariance parameters according to the kmeans cluster variances..."<<endl;
+	INFO_LOG("Assign the start covariance parameters according to the kmeans cluster variances...");
 	for(int k=0;k<fOptions.nComponents;k++){		
 		for(int j=0;j<fNDim;j++){
 			for(int l=0;l<fNDim;l++) {
@@ -1577,7 +1586,7 @@ int MNMixtureClustering::InitParsToKMeans()
 	
 	
 	//## Assign cluster centers as mean start
-	cout<<"INFO: Assign the start mean parameters according to the kmeans cluster centers ..."<<endl;
+	INFO_LOG("Assign the start mean parameters according to the kmeans cluster centers ...");
 	for(int k=0;k<fOptions.nComponents;k++){
 		for(int j=0;j<fNDim;j++){
 			//fMu[k](j,0)= (*clusterCenters)(k,j);
@@ -1597,17 +1606,17 @@ int MNMixtureClustering::InitParsToKMeans()
 
 void MNMixtureClustering::RandomizePars()
 {
-	cout<<"Randomize initial fit parameters..."<<endl;
+	INFO_LOG("Randomize initial fit parameters...");
 
 	//## Generate random Sigma
 	if(fOptions.randomizeStartCovariancePars) {
-		cout<<"INFO: Randomizing mixture covariance pars..."<<endl;
+		INFO_LOG("Randomizing mixture covariance pars...");
 		RandomizeSigmaPars(); 
 	}
 
 	//## Generate random means
 	if(fOptions.randomizeStartMeanPars) {
-		cout<<"INFO: Randomizing mixture mean pars..."<<endl;
+		INFO_LOG("Randomizing mixture mean pars...");
 		RandomizeMeanPars();
 	}
 
@@ -1687,13 +1696,13 @@ int MNMixtureClustering::CheckCovariance()
 		//## Force covariance to be symmetric and pos def
 		//## Approximate to the nearest covariance matrix
 		if(Util::MakeSymmPosDefCovarianceMatrix(fSigma[k])<0){
-			cerr<<"ERROR: Failed to correct covariance matrix for component no. "<<k+1<<"!"<<endl;
+			WARN_LOG("Failed to correct covariance matrix for component no. "<<k+1<<"!");
 			return -1;	
 		}
 
 		//## Check if determinant is ok
 		if(fSigmaDet[k]<=1.e-16){
-			cout<<"WARN: Covariance matrix for component "<<k+1<<" is not positive def (det="<<fSigmaDet[k]<<") ... setting covariance to safe matrix!"<<endl;
+			WARN_LOG("Covariance matrix for component "<<k+1<<" is not positive def (det="<<fSigmaDet[k]<<") ... setting covariance to safe matrix!");
 			fSigma[k]= fSigma_safe[k];
 		}
 
@@ -1704,13 +1713,13 @@ int MNMixtureClustering::CheckCovariance()
 		
 		//## Update eigenvalues & eigenvectors	
 		if(Util::ComputeSymMatrixEigenvalues(fSigmaEigen[k],fSigmaEigenvect[k],fSigma[k])<0){
-			cerr<<"ERROR: Failed to compute matrix eigenvalues/eigenvectors!"<<endl;
+			ERROR_LOG("Failed to compute matrix eigenvalues/eigenvectors!");
 			return -1;
 		}
 		TMatrixD sigmaEigenvectInv= TMatrixD(TMatrixD::kInverted,fSigmaEigenvect[k]);
 		double sigmaEigenvectDet= sigmaEigenvectInv.Determinant();
 		if(sigmaEigenvectDet<=0) {
-			cerr<<"WARN: Covariance matrix eigenvectors inversion failed for component "<<k+1<<" (det="<<sigmaEigenvectDet<<")!"<<endl;
+			WARN_LOG("Covariance matrix eigenvectors inversion failed for component "<<k+1<<" (det="<<sigmaEigenvectDet<<")!");
 		}
 
 		//## Set the current covariance as "safe"

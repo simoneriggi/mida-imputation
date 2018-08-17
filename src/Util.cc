@@ -551,6 +551,94 @@ Rcpp::NumericMatrix* Util::ConvertROOTMatrixToRMatrix(TMatrixD* dataMatrix)
 
 }//close ConvertROOTMatrixToRMatrix()
 
+TTree* Util::MatrixToTTree(TMatrixD* dataMatrix,std::string treeName,std::string treeTitle)
+{
+	//## Check data
+	if(!dataMatrix){
+		ERROR_LOG("Null ptr to data matrix given!");
+		return nullptr;
+	}
+	int nDim= dataMatrix->GetNcols();
+	long int N= dataMatrix->GetNrows();
+
+	double x[nDim];
+  TTree* tree = new TTree(treeName.c_str(),treeTitle.c_str()); 
+  tree->Branch("x",x,Form("x[%d]/D",nDim));
+
+  for (int i = 0; i<N;++i) { 
+  	for (int j = 0; j < nDim; ++j) {
+    	x[j] = (*dataMatrix)(i,j);
+    }
+  	tree->Fill();
+  }
+
+	return tree;
+
+}//close MatrixToTTree()
+
+
+int Util::SetRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction)
+{
+	//## Check data
+	if(!dataMatrix){
+		ERROR_LOG("Null ptr to data matrix given!");
+		return -1;
+	}
+
+	//Clone input data
+	//TMatrixD* dataMatrixWithMiss= (TMatrixD*)dataMatrix->Clone();
+
+	//## Set missing data at random
+	int nDim= dataMatrix->GetNcols();
+	long int N= dataMatrix->GetNrows();
+	long int NElements= N*nDim;
+	double NMissingElements= std::floor(missingDataFraction*NElements);
+	
+	long int missingCounter= 0;
+	std::vector< std::vector<long int> > takenIndex;
+	std::vector<long int> alltakenFlag;
+
+	for(long int i=0;i<N;i++){
+		takenIndex.push_back( std::vector<long int>() );
+		alltakenFlag.push_back(0.);
+		for(long int j=0;j<nDim;j++){
+			takenIndex[i].push_back(0);
+		}//end loop dim
+	}//end loop events
+	
+	while(missingCounter<NMissingElements){
+
+		if(missingCounter%100==0) INFO_LOG("--> "<<missingCounter<<"/"<<NMissingElements<<" events generated ...");
+
+		long int eventId= static_cast<long int>(gRandom->Uniform(0,N));
+		long int variableId= static_cast<long int>(gRandom->Uniform(0,nDim));
+
+		//## Check if this combination has already be taken
+		if(takenIndex[eventId][variableId]==0){
+			takenIndex[eventId][variableId]= 1;//set as taken
+
+			//## Now check if all patterns have been chosen
+			bool isAllTaken= true;
+			for(long int j=0;j<nDim;j++){
+				if(j!=variableId && takenIndex[eventId][j]== 0) {
+					isAllTaken= false;
+					break;
+				}
+			}//end loop dim
+
+			if(!isAllTaken){
+				(*dataMatrix)(eventId,variableId)= TMath::SignalingNaN();
+				missingCounter++;
+			}
+			else alltakenFlag[eventId]= true; 
+
+		}//close if
+	}//end loop while
+	
+	return 0;
+
+}//close SetRandomMissingData()
+
 
 TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction)
 {
@@ -563,6 +651,17 @@ TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFra
 	//Clone input data
 	TMatrixD* dataMatrixWithMiss= (TMatrixD*)dataMatrix->Clone();
 
+	//Set missing data
+	if(SetRandomMissingData(dataMatrixWithMiss,missingDataFraction)<0){
+		ERROR_LOG("Failed to set missing data in input data matrix!");
+		if(dataMatrixWithMiss){
+			delete dataMatrixWithMiss;
+			dataMatrixWithMiss= 0;
+		}
+		return nullptr;
+	}
+	
+	/*
 	//## Set missing data at random
 	long int nDim= dataMatrix->GetNcols();
 	long int N= dataMatrix->GetNrows();
@@ -609,7 +708,8 @@ TMatrixD* Util::MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFra
 
 		}//close if
 	}//end loop while
-	
+	*/
+
 	return dataMatrixWithMiss;
 
 }//close MakeRandomMissingData()

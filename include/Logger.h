@@ -25,9 +25,10 @@
 * @date 20/01/2015
 */
 
-#ifndef Logger_h
-#define Logger_h 1
+#ifndef _LOGGER_h
+#define _LOGGER_h 1
 
+#include <TObject.h>
 
 //== LOG4CXX HEADERS ==
 #include <log4cxx/logger.h>
@@ -66,7 +67,7 @@ using namespace std;
 namespace MDImputation_ns {
 
 
-class Logger  {
+class Logger: public TObject {
 
 	public:
 		Logger(std::string level="OFF",std::string tag="logger")
@@ -108,6 +109,8 @@ class Logger  {
 		log4cxx::LayoutPtr layout;
 		log4cxx::AppenderPtr appender;		
 		
+	ClassDef(Logger,1)		
+
 };//close Logger class
 
 
@@ -151,12 +154,14 @@ class ConsoleLogger : public Logger {
 	
 	protected:
 		std::string m_target;
+
+	ClassDef(ConsoleLogger,1)		
 		
 };//close ConsoleLogger class
 
 
 
-class LoggerManager {
+class LoggerManager : public TObject {
 	
 	public:
 		static LoggerManager& Instance() {
@@ -214,6 +219,7 @@ class LoggerManager {
 		static int m_target;
 		static Logger* m_logger;
 
+	ClassDef(LoggerManager,1)	
 	
 };//close LoggerManager()
 

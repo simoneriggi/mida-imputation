@@ -26,7 +26,6 @@
 
 #include <RInside.h>                    // for the embedded R via RInside
 
-
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
@@ -60,6 +59,10 @@ class Util : public TObject {
 		
 	
 	public:
+		/**
+		* \brief Convert TMatrixD to TTree
+		*/
+		static TTree* MatrixToTTree(TMatrixD* dataMatrix,std::string treeName="data",std::string treeTitle="");
 
 		/**
 		* \brief Force input matrix to be diagonal
@@ -136,9 +139,12 @@ class Util : public TObject {
 		*/
 		static TMatrixD* ComputeRTableColMeans(std::string RTable,std::string colMeansRName="colMeansVect");
 
-
 		/**
-		* \brief Create artifically random missing data in matrix and return data with missing data
+		* \brief Create artifically random missing data in matrix and return same data with missing data
+		*/
+		static int SetRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction);
+		/**
+		* \brief Create artifically random missing data in matrix and return new data with missing data
 		*/
 		static TMatrixD* MakeRandomMissingData(TMatrixD* dataMatrix,double missingDataFraction);
 		

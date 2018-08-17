@@ -34,8 +34,6 @@
 #include <TVector3.h>
 
 #include <Math/WrappedTF1.h>
-#include <Math/GSLIntegrator.h>
-#include <Math/GSLMinimizer.h>
 #include <Math/Functor.h>
 #include <Math/WrappedFunction.h>
 #include <Math/WrappedParamFunction.h>
@@ -44,6 +42,10 @@
 #include <Math/SpecFunc.h>
 #include <Math/DistFunc.h>
 #include <Math/RootFinder.h>
+#include <Math/DistSampler.h>
+#include <Math/DistSamplerOptions.h>
+#include <Math/MinimizerOptions.h>
+#include <Math/Factory.h>
 
 #include <RInside.h>                    // for the embedded R via RInside
 
@@ -60,6 +62,8 @@
 using namespace std;
 
 ClassImp(MDImputation_ns::MathUtils)
+ClassImp(MDImputation_ns::MNPDF)
+ClassImp(MDImputation_ns::MNMixturePDF)
 
 namespace MDImputation_ns {
 
@@ -73,7 +77,8 @@ MathUtils::~MathUtils(){
 }
 
 
-double MathUtils::MGDensityFcn(TMatrixD& y,TMatrixD& mu,TMatrixD& SigmaInv,double SigmaDet)
+
+double MathUtils::MNDensityFcn(TMatrixD& y,TMatrixD& mu,TMatrixD& SigmaInv,double SigmaDet)
 {
 	int dim= SigmaInv.GetNrows();
 	//TMatrixD diff(1,dim);
@@ -88,13 +93,13 @@ double MathUtils::MGDensityFcn(TMatrixD& y,TMatrixD& mu,TMatrixD& SigmaInv,doubl
 
 	return value;
 
-}//close MGDensityFcn()
+}//close MNDensityFcn()
 
 
 
 double MathUtils::tauGaus(TMatrixD& y,TMatrixD& mu,TMatrixD& SigmaInv,double SigmaDet,double pi)
 {
-	double f= MGDensityFcn(y,mu,SigmaInv,SigmaDet);
+	double f= MNDensityFcn(y,mu,SigmaInv,SigmaDet);
 	double value= pi*f;
 
 	return value;
