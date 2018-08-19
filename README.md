@@ -45,6 +45,5 @@ Binaries will be placed in the bin/ directory and libraries in the lib/ director
 ### **Usage**
 * ```MDImputation [--input=[path-to-inputfile]] [--config=[path-to-configfile]]```    
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;```--input=[path-to-inputfile] -  Input data file (.dat) with missing data to be imputed```   
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;```--input=[path-to-inputfile] -  Input data file (.dat) with missing data to be imputed```   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;```--method=[imputation-method] -  Imputation method to be used (1=MEAN, 2=LISTWISE DELETION, 3=MultipleImputation, 4=MN clustering, 5=MSN clustering```   
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;```--config=[path-to-configfile] - Configuration file name with options```    
